@@ -4,11 +4,11 @@ services:
     container_name: orderdb
     restart: unless-stopped
     environment:
-      POSTGRES_DB: orderdb
-      POSTGRES_USER: orderdb
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
