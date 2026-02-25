@@ -35,9 +35,6 @@ public class ProductService {
 
     public ProductResponse create(ProductRequest request) {
         Product product = mapper.toEntity(request);
-        if (request.attributes() != null) {
-            product.setAttributes(request.attributes());
-        }
         Product savedProduct = productRepository.save(product);
         return mapper.toResponse(savedProduct);
     }
