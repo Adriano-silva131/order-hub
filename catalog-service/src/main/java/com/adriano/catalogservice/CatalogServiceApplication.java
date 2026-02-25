@@ -1,4 +1,4 @@
-package com.adriano.catalog_service;
+package com.adriano.catalogservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

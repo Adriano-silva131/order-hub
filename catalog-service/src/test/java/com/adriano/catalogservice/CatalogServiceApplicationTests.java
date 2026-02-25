@@ -1,4 +1,4 @@
-package com.adriano.catalog_service;
+package com.adriano.catalogservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

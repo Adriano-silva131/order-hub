@@ -1,4 +1,4 @@
-package com.adriano.catalog_service.domain;
+package com.adriano.catalogservice.domain.product;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
