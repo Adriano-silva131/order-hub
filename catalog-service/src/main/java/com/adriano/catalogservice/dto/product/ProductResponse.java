@@ -8,6 +8,7 @@ public record ProductResponse(
         String name,
         String description,
         BigDecimal price,
-        Map<String, Object> attributes
+        Map<String, Object> attributes,
+        boolean active
 ) {
 }
