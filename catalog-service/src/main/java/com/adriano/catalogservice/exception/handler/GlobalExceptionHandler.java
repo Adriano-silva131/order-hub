@@ -1,4 +1,4 @@
-package com.adriano.catalogservice.controller.handler;
+package com.adriano.catalogservice.exception.handler;
 
 import com.adriano.catalogservice.exception.product.ProductNotFoundException;
 import org.springframework.http.HttpStatus;
