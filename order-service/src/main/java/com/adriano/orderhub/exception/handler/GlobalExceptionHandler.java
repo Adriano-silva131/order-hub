@@ -1,6 +1,8 @@
 package com.adriano.orderhub.exception.handler;
 
 import feign.FeignException;
+import feign.RetryableException;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -42,6 +44,24 @@ public class GlobalExceptionHandler {
                 ));
 
         problemDetail.setProperty("invalid_params", fieldErrors);
+        return problemDetail;
+    }
+
+    @ExceptionHandler(RetryableException.class)
+    public ProblemDetail handleConnectionRefused(RetryableException ex) {
+        return createServiceUnavailableResponse("Unable to connect to the product catalog service. Please try again later.");
+    }
+
+    @ExceptionHandler(CallNotPermittedException.class)
+    public ProblemDetail handleCircuitBreakerOpen(CallNotPermittedException ex) {
+        return createServiceUnavailableResponse("Service is currently unavailable. Please try again later.");
+    }
+
+    private ProblemDetail createServiceUnavailableResponse(String detail) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, detail);
+        problemDetail.setTitle("Service Unavailable");
+        problemDetail.setType(URI.create("https://api.orderhub.com/errors/service-unavailable"));
+        problemDetail.setProperty("timestamp", Instant.now());
         return problemDetail;
     }
 }
