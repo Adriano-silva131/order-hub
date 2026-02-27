@@ -5,10 +5,12 @@ import com.adriano.orderhub.domain.order.OrderItem;
 import com.adriano.orderhub.dto.order.OrderItemRequest;
 import com.adriano.orderhub.dto.order.OrderRequest;
 import com.adriano.orderhub.dto.order.OrderResponse;
+import com.adriano.orderhub.event.OrderCreatedEvent;
 import com.adriano.orderhub.integration.catalog.dto.CatalogProductResponse;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.ZoneOffset;
 
 @Component
 public class OrderMapper {
@@ -37,6 +39,15 @@ public class OrderMapper {
                 order.getStatus(),
                 order.getTotalAmount(),
                 order.getCreatedAt()
+        );
+    }
+
+    public OrderCreatedEvent toEvent(Order order) {
+        return new OrderCreatedEvent(
+                order.getId(),
+                order.getCustomerId(),
+                order.getTotalAmount(),
+                order.getCreatedAt().toInstant(ZoneOffset.UTC)
         );
     }
 }

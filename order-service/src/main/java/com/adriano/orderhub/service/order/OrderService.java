@@ -5,11 +5,13 @@ import com.adriano.orderhub.domain.order.OrderItem;
 import com.adriano.orderhub.dto.order.OrderItemRequest;
 import com.adriano.orderhub.dto.order.OrderRequest;
 import com.adriano.orderhub.dto.order.OrderResponse;
+import com.adriano.orderhub.event.OrderCreatedEvent;
 import com.adriano.orderhub.integration.catalog.client.CatalogClient;
 import com.adriano.orderhub.integration.catalog.dto.CatalogProductResponse;
 import com.adriano.orderhub.mapper.order.OrderMapper;
 import com.adriano.orderhub.repository.order.OrderRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -20,11 +22,13 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final CatalogClient catalogClient;
     private final OrderMapper orderMapper;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    public OrderService(OrderRepository orderRepository, CatalogClient catalogClient, OrderMapper orderMapper) {
+    public OrderService(OrderRepository orderRepository, CatalogClient catalogClient, OrderMapper orderMapper, KafkaTemplate<String, Object> kafkaTemplate) {
         this.orderRepository = orderRepository;
         this.catalogClient = catalogClient;
         this.orderMapper = orderMapper;
+        this.kafkaTemplate = kafkaTemplate;
     }
 
     @Transactional
@@ -35,6 +39,10 @@ public class OrderService {
         order.setTotalAmount(totalAmount);
 
         Order savedOrder = orderRepository.save(order);
+
+        OrderCreatedEvent event = orderMapper.toEvent(savedOrder);
+        kafkaTemplate.send("order-events", savedOrder.getId().toString(), event);
+
         return orderMapper.toResponse(savedOrder);
     }
 
