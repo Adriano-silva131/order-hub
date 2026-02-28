@@ -1,4 +1,4 @@
-package com.orderhub.payment_service.kafka;
+package com.adriano.orderhub.kafka;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,7 +27,7 @@ public class GenericEventConsumer {
         this.objectMapper = objectMapper;
     }
 
-    @KafkaListener(topics = "order-events", groupId = "payment-group")
+    @KafkaListener(topics = "payment-events", groupId = "${spring.kafka.consumer.group-id}")
     public void consume(ConsumerRecord<String, byte[]> record) {
         if (record.value() == null) {
             log.warn("Skipping record at offset {} — payload is null", record.offset());

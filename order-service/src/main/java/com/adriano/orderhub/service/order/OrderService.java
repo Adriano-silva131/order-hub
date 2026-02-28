@@ -2,6 +2,7 @@ package com.adriano.orderhub.service.order;
 
 import com.adriano.orderhub.domain.order.Order;
 import com.adriano.orderhub.domain.order.OrderItem;
+import com.adriano.orderhub.domain.order.OrderStatus;
 import com.adriano.orderhub.dto.order.OrderItemRequest;
 import com.adriano.orderhub.dto.order.OrderRequest;
 import com.adriano.orderhub.dto.order.OrderResponse;
@@ -11,11 +12,15 @@ import com.adriano.orderhub.integration.catalog.dto.CatalogProductResponse;
 import com.adriano.orderhub.kafka.KafkaEventPublisher;
 import com.adriano.orderhub.mapper.order.OrderMapper;
 import com.adriano.orderhub.repository.order.OrderRepository;
-import jakarta.transaction.Transactional;
+import jakarta.persistence.EntityNotFoundException;
+import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
+@Slf4j
 @Service
 public class OrderService {
 
@@ -44,6 +49,15 @@ public class OrderService {
         kafkaEventPublisher.publish("order-events", savedOrder.getId().toString(), "order.created.v1", event);
 
         return orderMapper.toResponse(savedOrder);
+    }
+
+    @Transactional
+    public void updateOrderStatus(UUID orderId, OrderStatus status) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("Order not found: " + orderId));
+        order.setStatus(status);
+        orderRepository.save(order);
+        log.info("Order {} status updated to {}", orderId, status);
     }
 
     private BigDecimal buildOrderItems(Order order, OrderRequest request) {
