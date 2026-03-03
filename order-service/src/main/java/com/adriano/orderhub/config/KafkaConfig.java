@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
+import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,6 +46,22 @@ public class KafkaConfig {
     @Bean
     public KafkaTemplate<String, Object> kafkaTemplate() {
         return new KafkaTemplate<>(producerFactory());
+    }
+
+    // ── Retry/DLT Producer ─────────────────────────────────────────────────
+
+    @Bean
+    public ProducerFactory<String, byte[]> retryProducerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
+        return new DefaultKafkaProducerFactory<>(props);
+    }
+
+    @Bean
+    public KafkaTemplate<String, byte[]> retryKafkaTemplate() {
+        return new KafkaTemplate<>(retryProducerFactory());
     }
 
     // ── Consumer ────────────────────────────────────────────────────────────

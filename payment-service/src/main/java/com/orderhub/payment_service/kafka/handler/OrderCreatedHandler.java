@@ -27,6 +27,9 @@ public class OrderCreatedHandler implements EventHandler<OrderCreatedEvent> {
     @Override
     public void handle(OrderCreatedEvent event) {
         log.info("Received event order.created.v1 for order: {}", event.orderId());
+
+        if (true) throw new RuntimeException("Simulando falha no payment-service!");
+
         paymentService.processPayment(event);
     }
 }

@@ -29,6 +29,7 @@ public class PaymentProcessedHandler implements EventHandler<PaymentProcessedEve
     public void handle(PaymentProcessedEvent event) {
         log.info("Received event payment.processed.v1 for order: {}", event.orderId());
         OrderStatus newStatus = "APPROVED".equals(event.status()) ? OrderStatus.PAID : OrderStatus.CANCELLED;
+
         orderService.updateOrderStatus(event.orderId(), newStatus);
     }
 }
