@@ -55,6 +55,12 @@ public class OrderService {
     public void updateOrderStatus(UUID orderId, OrderStatus status) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new EntityNotFoundException("Order not found: " + orderId));
+
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            log.warn("Order {} is already in final status {} — ignoring transition to {}", orderId, order.getStatus(), status);
+            return;
+        }
+
         order.setStatus(status);
         orderRepository.save(order);
         log.info("Order {} status updated to {}", orderId, status);

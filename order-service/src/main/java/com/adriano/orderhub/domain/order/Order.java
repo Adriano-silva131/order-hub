@@ -36,6 +36,9 @@ public class Order {
     @Builder.Default
     private List<OrderItem> items = new ArrayList<>();
 
+    @Version
+    private Long version;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

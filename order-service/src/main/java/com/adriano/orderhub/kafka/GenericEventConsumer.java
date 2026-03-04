@@ -90,6 +90,11 @@ public class GenericEventConsumer {
                 originalTopic = record.topic();
             }
 
+            if (dltMessageRepository.existsByOriginalTopicAndMessageKeyAndStatus(originalTopic, record.key(), DltStatus.PENDING)) {
+                log.warn("DLT message already PENDING for topic={}, key={} — skipping duplicate", originalTopic, record.key());
+                return;
+            }
+
             DltMessage dltMessage = DltMessage.builder()
                     .originalTopic(originalTopic)
                     .messageKey(record.key())
