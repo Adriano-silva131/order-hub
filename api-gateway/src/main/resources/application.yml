@@ -26,4 +26,4 @@ spring:
         - id: order-service-route
           uri: http://localhost:8080
           predicates:
-            - Path=/api/v1/orders/**
+            - Path=/api/v1/orders,/api/v1/orders/**
