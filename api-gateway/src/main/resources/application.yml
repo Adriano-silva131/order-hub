@@ -14,16 +14,17 @@ spring:
           issuer-uri: http://localhost:8180/realms/orderhub
   cloud:
     gateway:
-      default-filters:
-        - TokenRelay
-        - name: RequestRateLimiter
-          args:
-            redis-rate-limiter.replenishRate: 2
-            redis-rate-limiter.burstCapacity: 5
-            redis-rate-limiter.requestedTokens: 1
-            key-resolver: "#{@userKeyResolver}"
-      routes:
-        - id: order-service-route
-          uri: http://localhost:8080
-          predicates:
-            - Path=/api/v1/orders,/api/v1/orders/**
+      server:
+        webflux:
+          default-filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 2
+                redis-rate-limiter.burstCapacity: 5
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+          routes:
+            - id: order-service-route
+              uri: http://localhost:8080
+              predicates:
+                - Path=/api/v1/orders,/api/v1/orders/**

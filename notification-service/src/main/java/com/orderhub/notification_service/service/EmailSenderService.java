@@ -1,9 +1,11 @@
 package com.orderhub.notification_service.service;
 
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -17,12 +19,18 @@ public class EmailSenderService {
         this.mailSender = mailSender;
     }
 
-    public void sendEmail(String to, String subject, String body) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(to);
-        message.setSubject(subject);
-        message.setText(body);
-        mailSender.send(message);
-        log.info("E-mail enviado para {}", to);
+    public void sendEmail(String to, String subject, String htmlBody) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlBody, true);
+            mailSender.send(message);
+            log.info("E-mail enviado para {}", to);
+        } catch (MessagingException e) {
+            log.error("Falha ao enviar e-mail para {}: {}", to, e.getMessage());
+            throw new RuntimeException("Falha ao enviar e-mail", e);
+        }
     }
 }
