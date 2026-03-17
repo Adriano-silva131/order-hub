@@ -13,7 +13,9 @@ public class SecurityConfig {
     @Bean
     public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
         http.csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .authorizeExchange(exchange -> exchange.anyExchange().authenticated())
+                .authorizeExchange(exchange -> exchange
+                        .pathMatchers("/actuator/prometheus", "/actuator/health").permitAll()
+                        .anyExchange().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
 
         return http.build();

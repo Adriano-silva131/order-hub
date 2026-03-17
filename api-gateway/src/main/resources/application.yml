@@ -1,5 +1,6 @@
 server:
   port: 8000
+
 spring:
   application:
     name: api-gateway
@@ -28,3 +29,15 @@ spring:
               uri: http://localhost:8080
               predicates:
                 - Path=/api/v1/orders,/api/v1/orders/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
