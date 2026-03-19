@@ -29,6 +29,10 @@ spring:
               uri: http://localhost:8080
               predicates:
                 - Path=/api/v1/orders,/api/v1/orders/**
+            - id: catalog-service-route
+              uri: http://localhost:8081
+              predicates:
+                - Path=/api/v1/products,/api/v1/products/**
 
 management:
   endpoints:

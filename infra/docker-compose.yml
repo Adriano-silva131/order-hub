@@ -34,7 +34,7 @@ services:
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
@@ -72,6 +72,68 @@ services:
       timeout: 10s
       retries: 5
 
+
+  api-gateway:
+    build:
+      context: ../api-gateway
+    container_name: orderhub-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://host.docker.internal:8180/realms/orderhub/protocol/openid-connect/certs
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_0_ID=order-service-route
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_0_URI=http://orderhub-order-service:8080
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_0_PREDICATES_0=Path=/api/v1/orders,/api/v1/orders/**
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_1_ID=catalog-service-route
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_1_URI=http://orderhub-catalog-service:8081
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_1_PREDICATES_0=Path=/api/v1/products,/api/v1/products/**
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+      - keycloak
+
+  order-service:
+    build:
+      context: ../order-service
+    container_name: orderhub-order-service
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/orderdb
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - INTEGRATION_CATALOG_URL=http://orderhub-catalog-service:8081/api/v1/products
+    depends_on:
+      - postgres
+      - kafka
+
+  payment-service:
+    build:
+      context: ../payment-service
+    container_name: orderhub-payment-service
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/paymentdb
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      - postgres
+      - kafka
+
+  catalog-service:
+    build:
+      context: ../catalog-service
+    container_name: orderhub-catalog-service
+    environment:
+      - SPRING_MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@catalog-mongodb:27017/${MONGO_INITDB_DATABASE}?authSource=admin
+    depends_on:
+      - mongodb
+
+  notification-service:
+    build:
+      context: ../notification-service
+    container_name: orderhub-notification-service
+    environment:
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      - kafka
 
   prometheus:
     image: prom/prometheus:latest
