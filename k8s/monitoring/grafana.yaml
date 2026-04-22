@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: orderhub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_DATASOURCES_DEFAULT_NAME
+              value: Prometheus
+            - name: GF_DATASOURCES_DEFAULT_TYPE
+              value: prometheus
+            - name: GF_DATASOURCES_DEFAULT_URL
+              value: http://prometheus:9090
+            - name: GF_DATASOURCES_DEFAULT_ACCESS
+              value: proxy
+            - name: GF_DATASOURCES_DEFAULT_IS_DEFAULT
+              value: "true"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: orderhub
+spec:
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: LoadBalancer
