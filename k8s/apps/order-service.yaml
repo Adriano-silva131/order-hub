@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-service-config
+  namespace: orderhub
+data:
+  SPRING_PROFILES_ACTIVE: kubernetes
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  KAFKA_CONSUMER_GROUP_ID: order-group
+  # Feign target — k8s DNS replaces the fixed URL from application-local.properties
+  INTEGRATION_CATALOG_URL: http://catalog-service:8081/api/v1/products
+  # Circuit breaker (previously only in application-local.properties)
+  SPRING_CLOUD_OPENFEIGN_CIRCUITBREAKER_ENABLED: "true"
+  RESILIENCE4J_CIRCUITBREAKER_INSTANCES_CATALOG_SERVICE_SLIDING_WINDOW_SIZE: "5"
+  RESILIENCE4J_CIRCUITBREAKER_INSTANCES_CATALOG_SERVICE_FAILURE_RATE_THRESHOLD: "50"
+  RESILIENCE4J_CIRCUITBREAKER_INSTANCES_CATALOG_SERVICE_WAIT_DURATION_IN_OPEN_STATE: 10s
+  RESILIENCE4J_CIRCUITBREAKER_INSTANCES_CATALOG_SERVICE_PERMITTED_NUMBER_OF_CALLS_IN_HALF_OPEN_STATE: "2"
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: orderhub
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      containers:
+        - name: order-service
+          image: orderhub/order-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: order-service-config
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres:5432/orderdb
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: password
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 45
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 90
+            periodSeconds: 15
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: orderhub
+spec:
+  selector:
+    app: order-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
+
+---
+
+# For Kafka-lag-based scaling, consider KEDA with KafkaTopic trigger
+# targeting the order-group consumer group instead of CPU-based HPA.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: order-service-hpa
+  namespace: orderhub
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: order-service
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60

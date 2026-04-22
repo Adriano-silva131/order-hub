@@ -1,0 +1,78 @@
+# Prometheus using k8s service DNS for scrape targets instead of host.docker.internal.
+# For a more robust setup, replace static_configs with kubernetes_sd_configs
+# to auto-discover pods by annotation (prometheus.io/scrape: "true").
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: orderhub
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 10s
+
+    scrape_configs:
+      - job_name: 'orderhub-microservices'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets:
+            - 'api-gateway:8000'
+            - 'order-service:8080'
+            - 'catalog-service:8081'
+            - 'payment-service:8082'
+            - 'notification-service:8083'
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: orderhub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:latest
+          ports:
+            - containerPort: 9090
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: orderhub
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+  type: ClusterIP
