@@ -34,6 +34,6 @@ jobs:
       - name: Dar permissão de execução ao Gradle
         run: chmod +x ./${{ matrix.service }}/gradlew
 
-      - name: Build com Gradle (Ignorando testes pesados por enquanto)
+      - name: Build com Gradle (incluindo testes)
         working-directory: ./${{ matrix.service }}
-        run: ./gradlew build -x test
+        run: ./gradlew build
