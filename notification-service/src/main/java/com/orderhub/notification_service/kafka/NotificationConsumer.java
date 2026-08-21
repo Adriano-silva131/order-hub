@@ -5,6 +5,7 @@ import com.orderhub.notification_service.event.PaymentResultEvent;
 import com.orderhub.notification_service.service.EmailSenderService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,12 @@ public class NotificationConsumer {
     private static final Logger log = LoggerFactory.getLogger(NotificationConsumer.class);
     private final EmailSenderService emailService;
 
+    // Os eventos de order/payment ainda não carregam o e-mail do cliente,
+    // então usamos um destinatário de demonstração configurável até essa
+    // propagação existir de ponta a ponta.
+    @Value("${notification.demo-recipient-email:demo@example.com}")
+    private String demoRecipientEmail = "demo@example.com";
+
     public NotificationConsumer(EmailSenderService emailService) {
         this.emailService = emailService;
     }
@@ -25,7 +32,7 @@ public class NotificationConsumer {
     public void consumeOrderCreatedEvent(OrderCreatedEvent event) {
         log.info("Evento de PEDIDO CRIADO recebido para notificação. Pedido: {}", event.orderId());
 
-        String customerEmail = "adrianosilva6662@gmail.com";
+        String customerEmail = demoRecipientEmail;
         String subject = "Seu pedido foi recebido!";
         String valorFormatado = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"))
                 .format(event.totalAmount());
@@ -87,7 +94,7 @@ public class NotificationConsumer {
     public void consumePaymentEvent(PaymentResultEvent event) {
         log.info("Evento de PAGAMENTO recebido para notificação. Pedido: {}", event.orderId());
 
-        String customerEmail = "adrianosilva6662@gmail.com";
+        String customerEmail = demoRecipientEmail;
 
         String subject;
         String statusBlock;
