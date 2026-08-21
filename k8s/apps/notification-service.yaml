@@ -9,9 +9,9 @@ data:
   KAFKA_CONSUMER_GROUP_ID: notification-group
   SPRING_MAIL_HOST: smtp.gmail.com
   SPRING_MAIL_PORT: "587"
-  SPRING_MAIL_USERNAME: adrianosilva6662@gmail.com
   SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "true"
   SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "true"
+  NOTIFICATION_DEMO_RECIPIENT_EMAIL: demo@example.com
 
 ---
 
@@ -40,6 +40,11 @@ spec:
             - configMapRef:
                 name: notification-service-config
           env:
+            - name: SPRING_MAIL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notification-secret
+                  key: mail-username
             - name: SPRING_MAIL_PASSWORD
               valueFrom:
                 secretKeyRef:
