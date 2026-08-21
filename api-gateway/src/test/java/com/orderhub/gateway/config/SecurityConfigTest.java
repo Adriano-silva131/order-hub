@@ -30,4 +30,12 @@ class SecurityConfigTest {
                 .exchange()
                 .expectStatus().isUnauthorized();
     }
+
+    @Test
+    void docsRouteIsAccessibleWithoutAuthentication() {
+        webTestClient.get()
+                .uri("/docs/orders/v3/api-docs")
+                .exchange()
+                .expectStatus().value(status -> org.assertj.core.api.Assertions.assertThat(status).isNotEqualTo(401));
+    }
 }

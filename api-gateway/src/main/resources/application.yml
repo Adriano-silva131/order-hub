@@ -33,6 +33,18 @@ spring:
               uri: http://localhost:8081
               predicates:
                 - Path=/api/v1/products,/api/v1/products/**
+            - id: order-service-docs-route
+              uri: http://localhost:8080
+              predicates:
+                - Path=/docs/orders/v3/api-docs,/docs/orders/v3/api-docs/**,/docs/orders/swagger-ui.html,/docs/orders/swagger-ui/**
+              filters:
+                - RewritePath=/docs/orders/(?<segment>.*), /$\{segment}
+            - id: catalog-service-docs-route
+              uri: http://localhost:8081
+              predicates:
+                - Path=/docs/products/v3/api-docs,/docs/products/v3/api-docs/**,/docs/products/swagger-ui.html,/docs/products/swagger-ui/**
+              filters:
+                - RewritePath=/docs/products/(?<segment>.*), /$\{segment}
 
 management:
   endpoints:
