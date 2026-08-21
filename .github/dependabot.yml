@@ -4,6 +4,9 @@ updates:
     directory: "/api-gateway"
     schedule:
       interval: "weekly"
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     ignore:
       # Boot 4.1.0 moved Jackson from com.fasterxml.jackson.* to
       # tools.jackson.* and needs a matching Spring Cloud train bump —
@@ -14,27 +17,49 @@ updates:
     directory: "/order-service"
     schedule:
       interval: "weekly"
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     ignore:
       - dependency-name: "org.springframework.boot"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # Pinned to 1.21.4 on purpose: org.testcontainers:postgresql and
+      # :junit-jupiter have no 2.x release yet, so mixing them with a 2.x
+      # core testcontainers artifact breaks the build. Revisit once the
+      # submodules catch up to the 2.x line.
+      - dependency-name: "org.testcontainers:*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "gradle"
     directory: "/catalog-service"
     schedule:
       interval: "weekly"
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     ignore:
       - dependency-name: "org.springframework.boot"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "org.testcontainers:*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "gradle"
     directory: "/payment-service"
     schedule:
       interval: "weekly"
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     ignore:
       - dependency-name: "org.springframework.boot"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "org.testcontainers:*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: "gradle"
     directory: "/notification-service"
     schedule:
       interval: "weekly"
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     ignore:
       - dependency-name: "org.springframework.boot"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
@@ -42,3 +67,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions:
+        update-types: ["minor", "patch"]
