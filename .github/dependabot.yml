@@ -4,22 +4,40 @@ updates:
     directory: "/api-gateway"
     schedule:
       interval: "weekly"
+    ignore:
+      # Boot 4.1.0 moved Jackson from com.fasterxml.jackson.* to
+      # tools.jackson.* and needs a matching Spring Cloud train bump —
+      # not a mechanical dependency update. Revisit deliberately.
+      - dependency-name: "org.springframework.boot"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: "gradle"
     directory: "/order-service"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "org.springframework.boot"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: "gradle"
     directory: "/catalog-service"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "org.springframework.boot"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: "gradle"
     directory: "/payment-service"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "org.springframework.boot"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: "gradle"
     directory: "/notification-service"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "org.springframework.boot"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
