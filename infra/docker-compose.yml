@@ -83,7 +83,9 @@ services:
       - KC_HEALTH_ENABLED=true
     ports:
       - "${KEYCLOAK_PORT:-8080}:8080"
-    command: start-dev
+    volumes:
+      - ./keycloak/orderhub-realm.json:/opt/keycloak/data/import/orderhub-realm.json
+    command: start-dev --import-realm
     healthcheck:
       # A imagem do Keycloak não tem curl/wget; usamos /dev/tcp do bash para
       # checar o endpoint de health (habilitado via KC_HEALTH_ENABLED acima).

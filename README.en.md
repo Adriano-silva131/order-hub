@@ -111,12 +111,24 @@ docker compose up -d --build
 | Service                      | URL                                              |
 |-------------------------------|--------------------------------------------------|
 | API Gateway                   | http://localhost:8000                            |
-| Keycloak (token issuing)      | http://localhost:9090                            |
+| Keycloak (token issuing)      | http://localhost:8080 *(port configurable via `KEYCLOAK_PORT` in `.env`)* |
 | Grafana (dashboards)          | http://localhost:3000 *(the "JVM (Micrometer)" dashboard is already provisioned; default login `admin`/`admin`)* |
 | Swagger UI — orders           | http://localhost:8000/docs/orders/swagger-ui/index.html |
 | Swagger UI — products         | http://localhost:8000/docs/products/swagger-ui/index.html |
 
 Interactive API docs are served through the api-gateway itself (no internal service ports exposed). "Try it out" calls the real, authenticated API at `http://localhost:8000/api/v1/...` — a valid Keycloak JWT is still required to execute requests.
+
+**4. Get a test token:**
+
+The `orderhub` realm (client `orderhub_client`, user `demo`/`demo123`) is pre-configured and auto-imported the first time Keycloak starts — nothing to set up manually.
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/realms/orderhub/protocol/openid-connect/token \
+  -d "client_id=orderhub_client&grant_type=password&username=demo&password=demo123" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
+
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/products
+```
 
 (Note on emails: the system sends real emails to the address configured via the notification-service environment variables/properties, through Gmail SMTP).
 

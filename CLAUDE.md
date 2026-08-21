@@ -17,7 +17,7 @@ docker compose up -d --build
 
 Key URLs when running via Docker Compose:
 - API Gateway: `http://localhost:8000`
-- Keycloak: `http://localhost:9090` (realm: `orderhub`)
+- Keycloak: `http://localhost:8080` (port configurable via `KEYCLOAK_PORT` in `infra/.env`; realm `orderhub` is auto-imported from `infra/keycloak/orderhub-realm.json` on first startup — client `orderhub_client`, test user `demo`/`demo123`)
 - Grafana: `http://localhost:3000` (the "JVM (Micrometer)", ex-dashboard ID 4701, is auto-provisioned via `infra/grafana/provisioning`)
 - Prometheus: `http://localhost:9091`
 
