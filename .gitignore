@@ -10,6 +10,3 @@ k6/tokens.json
 
 # Variáveis de ambiente locais do k6 — nunca commitar
 k6/.env
-
-# Script de criação de usuários de teste — uso local apenas
-k6/create-users.sh
