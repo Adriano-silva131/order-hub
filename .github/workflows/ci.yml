@@ -43,7 +43,7 @@ jobs:
         run: ./gradlew build
 
       - name: Scan de vulnerabilidades de dependências (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: ${{ matrix.service }}
@@ -54,7 +54,7 @@ jobs:
 
       - name: Publicar resultado do Trivy na aba Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'
           category: trivy-${{ matrix.service }}
