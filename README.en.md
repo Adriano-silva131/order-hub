@@ -113,6 +113,10 @@ docker compose up -d --build
 | API Gateway                   | http://localhost:8000                            |
 | Keycloak (token issuing)      | http://localhost:9090                            |
 | Grafana (dashboards)          | http://localhost:3000 *(the "JVM (Micrometer)" dashboard is already provisioned; default login `admin`/`admin`)* |
+| Swagger UI — orders           | http://localhost:8000/docs/orders/swagger-ui/index.html |
+| Swagger UI — products         | http://localhost:8000/docs/products/swagger-ui/index.html |
+
+Interactive API docs are served through the api-gateway itself (no internal service ports exposed). "Try it out" calls the real, authenticated API at `http://localhost:8000/api/v1/...` — a valid Keycloak JWT is still required to execute requests.
 
 (Note on emails: the system sends real emails to the address configured via the notification-service environment variables/properties, through Gmail SMTP).
 
