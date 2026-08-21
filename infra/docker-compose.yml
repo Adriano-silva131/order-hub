@@ -11,6 +11,7 @@ services:
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
@@ -108,6 +109,14 @@ services:
       - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_1_ID=catalog-service-route
       - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_1_URI=http://orderhub-catalog-service:8081
       - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_1_PREDICATES_0=Path=/api/v1/products,/api/v1/products/**
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_2_ID=order-service-docs-route
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_2_URI=http://orderhub-order-service:8080
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_2_PREDICATES_0=Path=/docs/orders/v3/api-docs,/docs/orders/v3/api-docs/**,/docs/orders/swagger-ui.html,/docs/orders/swagger-ui/**
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_2_FILTERS_0=RewritePath=/docs/orders/(?<segment>.*), /$$\{segment}
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_3_ID=catalog-service-docs-route
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_3_URI=http://orderhub-catalog-service:8081
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_3_PREDICATES_0=Path=/docs/products/v3/api-docs,/docs/products/v3/api-docs/**,/docs/products/swagger-ui.html,/docs/products/swagger-ui/**
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_3_FILTERS_0=RewritePath=/docs/products/(?<segment>.*), /$$\{segment}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -130,6 +139,8 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/orderdb
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - INTEGRATION_CATALOG_URL=http://orderhub-catalog-service:8081/api/v1/products
+      - SPRINGDOC_SWAGGER_UI_URL=/docs/orders/v3/api-docs
+      - APP_PUBLIC_BASE_URL=http://localhost:8000
     depends_on:
       postgres:
         condition: service_healthy
@@ -167,6 +178,8 @@ services:
     container_name: orderhub-catalog-service
     environment:
       - SPRING_MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@catalog-mongodb:27017/${MONGO_INITDB_DATABASE}?authSource=admin
+      - SPRINGDOC_SWAGGER_UI_URL=/docs/products/v3/api-docs
+      - APP_PUBLIC_BASE_URL=http://localhost:8000
     depends_on:
       mongodb:
         condition: service_healthy
