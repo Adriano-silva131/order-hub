@@ -1,5 +1,12 @@
 # 🚀 OrderHub — Plataforma de Pedidos Distribuída
 
+🇧🇷 Português | 🇬🇧 [English](README.en.md)
+
+[![CI](https://github.com/Adriano-silva131/order-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/Adriano-silva131/order-hub/actions/workflows/ci.yml)
+![Java](https://img.shields.io/badge/Java-21-orange)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.3-brightgreen)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Plataforma de e-commerce construída com arquitetura de microsserviços, comunicação orientada a eventos via Kafka e stack completa de observabilidade. Desenvolvida como prova de conceito para arquiteturas escaláveis, resilientes e de alta disponibilidade.
 
 ---
@@ -8,26 +15,17 @@ Plataforma de e-commerce construída com arquitetura de microsserviços, comunic
 
 O ecossistema adota o padrão **API Gateway** acoplado com **Authentication Offloading**, garantindo que a regra de segurança e rate limiting fique na borda, enquanto os serviços internos operam em uma rede isolada focados puramente no domínio de negócio.
 
-```text
-Cliente (Postman/Web)
-  │
-  ▼
-API Gateway (Porta 8000)
-  │  Validação JWT (Keycloak)
-  │  Rate Limiting (Redis)
-  │
-  ├──► Order Service ──────► Kafka (order-events) ──────────────────────────────────┐
-  │         │                                                                       │
-  │         │ Feign + Circuit Breaker                                               ▼
-  │         ▼                                                              Payment Service
-  │    Catalog Service                                                              │
-  │                                                                                 ▼
-  │                                                                   Kafka (payment-events)
-  │                                                                        │               │
-  │                                                                        ▼               ▼
-  │                                                                  Order Service    Notification
-  │                                                                (atualiza status)  (envia email)
-  └──► Catalog Service
+```mermaid
+flowchart LR
+    Client["Cliente (Postman/Web)"] --> Gateway["API Gateway :8000\nJWT (Keycloak) + Rate Limiting (Redis)"]
+    Gateway --> Order["Order Service :8080"]
+    Gateway --> Catalog["Catalog Service :8081"]
+    Order -- "Feign + Circuit Breaker" --> Catalog
+    Order -- "order.created.v1" --> K1["Kafka: order-events"]
+    K1 --> Payment["Payment Service :8082"]
+    Payment -- "payment.processed.v1" --> K2["Kafka: payment-events"]
+    K2 --> Order
+    K2 --> Notification["Notification Service :8083\n(envia e-mail)"]
 ```
 
 ---
@@ -97,8 +95,9 @@ A infraestrutura foi desenhada para subir com um único comando, configurando ba
 **1. Clone o repositório:**
 
 ```bash
-git clone https://github.com/seu-usuario/order-hub-application.git
-cd order-hub-application/infra
+git clone https://github.com/Adriano-silva131/order-hub.git
+cd order-hub/infra
+cp .env.example .env   # preencha os valores antes de subir a stack
 ```
 
 **2. Suba a infraestrutura completa:**
@@ -113,8 +112,14 @@ docker compose up -d --build
 |------------------------------|--------------------------------------------------|
 | API Gateway                  | http://localhost:8000                            |
 | Keycloak (Geração de Token)  | http://localhost:9090                            |
-| Grafana (Dashboards)         | http://localhost:3000 *(importe o dashboard ID 4701)* |
+| Grafana (Dashboards)         | http://localhost:3000 *(dashboard "JVM (Micrometer)" já vem provisionado; login padrão `admin`/`admin`)* |
 
 (Nota sobre e-mails: O sistema efetua o disparo real para o e-mail configurado na variável de ambiente/properties do notification-service através do SMTP do Gmail).
+
+---
+
+## 🤝 Contribuindo
+
+Sugestões, issues e PRs são bem-vindos — veja [CONTRIBUTING.md](CONTRIBUTING.md). Este projeto é distribuído sob a [licença MIT](LICENSE).
 
 ---
