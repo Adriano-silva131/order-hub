@@ -1,21 +1,24 @@
-name: OrderHub CI Pipeline
+name: CodeQL
 
 on:
   push:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
+  schedule:
+    - cron: '0 6 * * 1'
 
 permissions:
   contents: read
   security-events: write
 
 jobs:
-  build:
-    name: Build & Test - ${{ matrix.service }}
+  analyze:
+    name: Analyze - ${{ matrix.service }}
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         service:
           - api-gateway
@@ -25,7 +28,7 @@ jobs:
           - notification-service
 
     steps:
-      - name: Checkout do Código
+      - name: Checkout do código
         uses: actions/checkout@v4
 
       - name: Configurar Java 21
@@ -35,26 +38,20 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          source-root: ${{ matrix.service }}
+
       - name: Dar permissão de execução ao Gradle
         run: chmod +x ./${{ matrix.service }}/gradlew
 
-      - name: Build com Gradle (incluindo testes)
+      - name: Build (para o CodeQL analisar os bytecodes gerados)
         working-directory: ./${{ matrix.service }}
-        run: ./gradlew build
+        run: ./gradlew build -x test
 
-      - name: Scan de vulnerabilidades de dependências (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+      - name: Executar análise do CodeQL
+        uses: github/codeql-action/analyze@v3
         with:
-          scan-type: 'fs'
-          scan-ref: ${{ matrix.service }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0'
-
-      - name: Publicar resultado do Trivy na aba Security
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-results.sarif'
-          category: trivy-${{ matrix.service }}
+          category: codeql-${{ matrix.service }}
