@@ -66,7 +66,7 @@ flowchart LR
 | Redis                     | In-memory store for traffic control (Token Bucket).                 |
 | Keycloak                  | Identity Provider for access management via OAuth2/OIDC.            |
 | Prometheus & Grafana      | Metrics collection (Actuator/Micrometer) and real-time dashboards.  |
-| GitHub Actions            | CI pipeline with a parallel matrix build.                           |
+| GitHub Actions            | CI pipeline with a parallel matrix build, plus dependency scanning (Trivy) and static analysis (CodeQL). |
 
 ---
 
