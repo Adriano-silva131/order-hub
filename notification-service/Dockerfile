@@ -18,6 +18,8 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
+RUN apk add --no-cache gcompat
+
 RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 
