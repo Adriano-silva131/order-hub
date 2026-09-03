@@ -1,8 +1,15 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:16
     container_name: orderdb
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -20,6 +27,7 @@ services:
   mongodb:
     image: mongo:latest
     container_name: catalog-mongodb
+    logging: *default-logging
     ports:
       - "${MONGO_PORT:-27017}:27017"
     environment:
@@ -38,6 +46,8 @@ services:
     image: apache/kafka:latest
     container_name: kafka
     hostname: kafka
+    restart: unless-stopped
+    logging: *default-logging
     ports:
       - "${KAFKA_PORT:-9092}:9092"
     environment:
@@ -65,6 +75,7 @@ services:
     image: redis:7-alpine
     container_name: orderhub-redis
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
@@ -74,37 +85,17 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-  keycloak:
-    image: quay.io/keycloak/keycloak:24.0.1
-    container_name: orderhub-keycloak
-    environment:
-      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN}
-      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
-      - KC_HEALTH_ENABLED=true
-    ports:
-      - "${KEYCLOAK_PORT:-8080}:8080"
-    volumes:
-      - ./keycloak/orderhub-realm.json:/opt/keycloak/data/import/orderhub-realm.json
-    command: start-dev --import-realm
-    healthcheck:
-      # A imagem do Keycloak não tem curl/wget; usamos /dev/tcp do bash para
-      # checar o endpoint de health (habilitado via KC_HEALTH_ENABLED acima).
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-      start_period: 45s
-
 
   api-gateway:
     build:
       context: ../api-gateway
     container_name: orderhub-gateway
+    logging: *default-logging
     ports:
       - "8000:8000"
     environment:
       - SPRING_DATA_REDIS_HOST=redis
-      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://host.docker.internal:8180/realms/orderhub/protocol/openid-connect/certs
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://host.docker.internal:${AUTH_SERVICE_PORT:-8090}/.well-known/jwks.json
       - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_0_ID=order-service-route
       - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_0_URI=http://orderhub-order-service:8080
       - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_0_PREDICATES_0=Path=/api/v1/orders,/api/v1/orders/**
@@ -119,12 +110,13 @@ services:
       - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_3_URI=http://orderhub-catalog-service:8081
       - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_3_PREDICATES_0=Path=/docs/products/v3/api-docs,/docs/products/v3/api-docs/**,/docs/products/swagger-ui.html,/docs/products/swagger-ui/**
       - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_3_FILTERS_0=RewritePath=/docs/products/(?<segment>.*), /$$\{segment}
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_4_ID=payment-service-route
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_4_URI=http://orderhub-payment-service:8082
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_4_PREDICATES_0=Path=/api/v1/payments/**
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       redis:
-        condition: service_healthy
-      keycloak:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8000/actuator/health"]
@@ -137,6 +129,7 @@ services:
     build:
       context: ../order-service
     container_name: orderhub-order-service
+    logging: *default-logging
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/orderdb
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
@@ -157,27 +150,37 @@ services:
 
   payment-service:
     build:
-      context: ../payment-service
+      context: ${PAYMENT_SERVICE_GO_PATH:-../../payment-service-go}
     container_name: orderhub-payment-service
+    logging: *default-logging
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/paymentdb
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/paymentdb?sslmode=disable
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_CONSUMER_GROUP_ID=payment-group
+      - DLT_REPROCESS_INTERVAL_MS=60000
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - MERCADOPAGO_ACCESS_TOKEN=${MERCADOPAGO_ACCESS_TOKEN}
+      - MERCADOPAGO_WEBHOOK_SECRET=${MERCADOPAGO_WEBHOOK_SECRET}
+      - PAYMENT_SUCCESS_URL=${STOREFRONT_URL:-http://localhost:3001}/checkout/success
+      - PAYMENT_CANCEL_URL=${STOREFRONT_URL:-http://localhost:3001}/checkout/cancel
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8082/actuator/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/healthz"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 15s
 
   catalog-service:
     build:
       context: ../catalog-service
     container_name: orderhub-catalog-service
+    logging: *default-logging
     environment:
       - SPRING_MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@catalog-mongodb:27017/${MONGO_INITDB_DATABASE}?authSource=admin
       - SPRINGDOC_SWAGGER_UI_URL=/docs/products/v3/api-docs
@@ -196,6 +199,7 @@ services:
     build:
       context: ../notification-service
     container_name: orderhub-notification-service
+    logging: *default-logging
     environment:
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - SPRING_MAIL_USERNAME=${MAIL_USERNAME}
@@ -214,6 +218,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: orderhub-prometheus
+    logging: *default-logging
     ports:
       - "9091:9090"
     volumes:
@@ -229,19 +234,72 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: orderhub-grafana
+    logging: *default-logging
     ports:
-      - "3000:3000"
+      - "3001:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/etc/grafana/dashboards
     depends_on:
       prometheus:
         condition: service_healthy
+      tempo:
+        condition: service_started
+      loki:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    container_name: orderhub-otel-collector
+    logging: *default-logging
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./observability/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - tempo
+
+  tempo:
+    image: grafana/tempo:2.7.1
+    container_name: orderhub-tempo
+    logging: *default-logging
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo.yaml
+      - tempo_data:/var/tempo
+
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: orderhub-loki
+    logging: *default-logging
+    command: ["-config.file=/etc/loki/loki-config.yaml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./observability/loki-config.yaml:/etc/loki/loki-config.yaml
+      - loki_data:/loki
+
+  alloy:
+    image: grafana/alloy:latest
+    container_name: orderhub-alloy
+    logging: *default-logging
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "/etc/alloy/config.alloy"]
+    ports:
+      - "12345:12345"
+    volumes:
+      - ./observability/alloy-config.alloy:/etc/alloy/config.alloy
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      - loki
 
 volumes:
   postgres_data:
@@ -249,3 +307,5 @@ volumes:
   kafka_data:
   redis_data:
     driver: local
+  tempo_data:
+  loki_data:

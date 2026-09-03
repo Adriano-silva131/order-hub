@@ -7,8 +7,8 @@ data:
   SPRING_PROFILES_ACTIVE: kubernetes
   SPRING_DATA_REDIS_HOST: redis
   SPRING_DATA_REDIS_PORT: "6379"
-  # JWT validation — Keycloak service DNS
-  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/orderhub
+  # JWT validation — auth-service JWKS endpoint (in-cluster DNS)
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://auth-service:8090/.well-known/jwks.json
   # Routes — using k8s service DNS instead of fixed IPs
   SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_0_ID: order-service-route
   SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_0_URI: http://order-service:8080

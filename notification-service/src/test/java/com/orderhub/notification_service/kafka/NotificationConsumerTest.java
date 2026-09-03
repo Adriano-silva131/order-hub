@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -26,34 +27,51 @@ class NotificationConsumerTest {
     private NotificationConsumer consumer;
 
     @Test
-    void consumeOrderCreatedEvent_shouldSendEmailWithOrderDetails() {
+    void consumeOrderCreatedEvent_shouldSendEmailToCustomerAddress() {
         var orderId = UUID.randomUUID();
-        var event = new OrderCreatedEvent(orderId, UUID.randomUUID(), new BigDecimal("1500.00"));
+        var event = new OrderCreatedEvent(orderId, "customer-1", "customer@example.com", new BigDecimal("1500.00"));
 
         consumer.consumeOrderCreatedEvent(event);
 
+        var toCaptor = ArgumentCaptor.forClass(String.class);
         var subjectCaptor = ArgumentCaptor.forClass(String.class);
         var bodyCaptor = ArgumentCaptor.forClass(String.class);
 
-        verify(emailService).sendEmail(any(), subjectCaptor.capture(), bodyCaptor.capture());
+        verify(emailService).sendEmail(toCaptor.capture(), subjectCaptor.capture(), bodyCaptor.capture());
 
+        assertThat(toCaptor.getValue()).isEqualTo("customer@example.com");
         assertThat(subjectCaptor.getValue()).contains("pedido");
         assertThat(bodyCaptor.getValue()).contains(orderId.toString());
         assertThat(bodyCaptor.getValue()).contains("R$");
     }
 
     @Test
-    void consumePaymentEvent_shouldSendApprovalEmailWhenApproved() {
+    void consumeOrderCreatedEvent_shouldFallBackToDemoRecipientWhenEmailIsBlank() {
         var orderId = UUID.randomUUID();
-        var event = new PaymentResultEvent(orderId, "APPROVED");
+        var event = new OrderCreatedEvent(orderId, "customer-1", "", new BigDecimal("1500.00"));
+
+        consumer.consumeOrderCreatedEvent(event);
+
+        verify(emailService).sendEmail(anyString(), anyString(), anyString());
+        var toCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailService).sendEmail(toCaptor.capture(), anyString(), anyString());
+        assertThat(toCaptor.getValue()).isEqualTo("demo@example.com");
+    }
+
+    @Test
+    void consumePaymentEvent_shouldSendApprovalEmailToCustomerAddress() {
+        var orderId = UUID.randomUUID();
+        var event = new PaymentResultEvent(orderId, "APPROVED", "customer@example.com");
 
         consumer.consumePaymentEvent(event);
 
+        var toCaptor = ArgumentCaptor.forClass(String.class);
         var subjectCaptor = ArgumentCaptor.forClass(String.class);
         var bodyCaptor = ArgumentCaptor.forClass(String.class);
 
-        verify(emailService).sendEmail(any(), subjectCaptor.capture(), bodyCaptor.capture());
+        verify(emailService).sendEmail(toCaptor.capture(), subjectCaptor.capture(), bodyCaptor.capture());
 
+        assertThat(toCaptor.getValue()).isEqualTo("customer@example.com");
         assertThat(subjectCaptor.getValue()).contains("aprovado");
         assertThat(bodyCaptor.getValue()).contains(orderId.toString());
     }
@@ -61,20 +79,16 @@ class NotificationConsumerTest {
     @Test
     void consumePaymentEvent_shouldSendRejectionEmailWhenNotApproved() {
         var orderId = UUID.randomUUID();
-        var event = new PaymentResultEvent(orderId, "REJECTED");
+        var event = new PaymentResultEvent(orderId, "REJECTED", "customer@example.com");
 
         consumer.consumePaymentEvent(event);
 
         var subjectCaptor = ArgumentCaptor.forClass(String.class);
         var bodyCaptor = ArgumentCaptor.forClass(String.class);
 
-        verify(emailService).sendEmail(any(), subjectCaptor.capture(), bodyCaptor.capture());
+        verify(emailService).sendEmail(anyString(), subjectCaptor.capture(), bodyCaptor.capture());
 
         assertThat(subjectCaptor.getValue()).contains("Problema");
         assertThat(bodyCaptor.getValue()).contains(orderId.toString());
-    }
-
-    private static String any() {
-        return org.mockito.ArgumentMatchers.anyString();
     }
 }
