@@ -8,7 +8,7 @@ OrderHub is a distributed e-commerce order platform built with a microservices a
 
 ## Running the Full Stack
 
-The entire infrastructure (databases, Kafka, Keycloak, Redis, Prometheus, Grafana, and all services) is managed via Docker Compose:
+The entire infrastructure (databases, Kafka, auth-service, Redis, Prometheus, Grafana, and all services) is managed via Docker Compose:
 
 ```bash
 cd infra
@@ -17,7 +17,7 @@ docker compose up -d --build
 
 Key URLs when running via Docker Compose:
 - API Gateway: `http://localhost:8000`
-- Keycloak: `http://localhost:8080` (port configurable via `KEYCLOAK_PORT` in `infra/.env`; realm `orderhub` is auto-imported from `infra/keycloak/orderhub-realm.json` on first startup — client `orderhub_client`, test user `demo`/`demo123`)
+- Auth Service: `http://localhost:8090` (port configurable via `AUTH_SERVICE_PORT` in `infra/.env`; Go service in the sibling `auth-service-go` repo — register via `POST /auth/register`, login via `POST /auth/login`, no pre-seeded demo user)
 - Grafana: `http://localhost:3000` (the "JVM (Micrometer)", ex-dashboard ID 4701, is auto-provisioned via `infra/grafana/provisioning`)
 - Prometheus: `http://localhost:9091`
 
@@ -65,7 +65,7 @@ The script runs a 4-stage ramp (warm-up → steady → spike → cool-down) and 
 Client → API Gateway (8000) → order-service (8080) / catalog-service (8081)
 ```
 
-- **Authentication offloading**: JWT validation happens exclusively at the API Gateway (Spring WebFlux + Spring Security OAuth2). Internal services have no security layer.
+- **Authentication offloading**: JWT validation happens exclusively at the API Gateway (Spring WebFlux + Spring Security OAuth2, validated against the `auth-service` JWKS endpoint). Internal services have no security layer.
 - **Rate limiting**: Token Bucket algorithm via Redis, keyed by the `sub` claim from the JWT.
 - **Internal routing**: The gateway proxies to services by container name (Docker) or localhost (local dev).
 
@@ -134,9 +134,9 @@ The `k8s/` directory contains manifests for deploying the full stack to a cluste
 ```
 k8s/
 ├── namespace.yaml        # orderhub namespace
-├── secrets.yaml          # DB credentials, Gmail SMTP, Keycloak client secret
-├── apps/                 # one Deployment + Service per microservice
-├── infra/                # Kafka, Keycloak, MongoDB, PostgreSQL, Redis
+├── secrets.yaml          # DB credentials, Gmail SMTP, auth-service admin API key
+├── apps/                 # one Deployment + Service per microservice (includes auth-service)
+├── infra/                # Kafka, MongoDB, PostgreSQL, Redis
 └── monitoring/           # Prometheus and Grafana
 ```
 

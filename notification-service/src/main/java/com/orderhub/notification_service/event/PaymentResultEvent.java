@@ -4,5 +4,6 @@ import java.util.UUID;
 
 public record PaymentResultEvent(
         UUID orderId,
-        String status
+        String status,
+        String customerEmail
 ) {}

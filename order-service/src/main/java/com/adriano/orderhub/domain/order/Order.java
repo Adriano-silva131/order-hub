@@ -25,6 +25,10 @@ public class Order {
     @Column(nullable = false)
     private String customerId;
 
+    @Column(name = "customer_email", nullable = false)
+    @Builder.Default
+    private String customerEmail = "";
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private OrderStatus status;

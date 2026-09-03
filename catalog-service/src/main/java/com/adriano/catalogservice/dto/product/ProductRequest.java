@@ -3,6 +3,7 @@ package com.adriano.catalogservice.dto.product;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -16,6 +17,8 @@ public record ProductRequest(
         @Positive(message = "Price is bigger than zero")
         BigDecimal price,
         boolean active,
-        Map<String, Object> attributes
+        Map<String, Object> attributes,
+        @PositiveOrZero(message = "Stock quantity cannot be negative")
+        int stockQuantity
 ) {
 }

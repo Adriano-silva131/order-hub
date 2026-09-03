@@ -38,4 +38,38 @@ class SecurityConfigTest {
                 .exchange()
                 .expectStatus().value(status -> org.assertj.core.api.Assertions.assertThat(status).isNotEqualTo(401));
     }
+
+    @Test
+    void paymentWebhookRouteIsAccessibleWithoutAuthentication() {
+        webTestClient.post()
+                .uri("/api/v1/payments/webhooks/stripe")
+                .exchange()
+                .expectStatus().value(status -> org.assertj.core.api.Assertions.assertThat(status).isNotEqualTo(401));
+    }
+
+    @Test
+    void checkoutRouteWithoutTokenIsUnauthorized() {
+        webTestClient.post()
+                .uri("/api/v1/payments/checkout")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void productCatalogIsAccessibleWithoutAuthentication() {
+        // order-hub-store server-renders /catalogo for SEO — crawlers carry no JWT.
+        webTestClient.get()
+                .uri("/api/v1/products")
+                .exchange()
+                .expectStatus().value(status -> org.assertj.core.api.Assertions.assertThat(status).isNotEqualTo(401));
+    }
+
+    @Test
+    void productCreationWithoutTokenIsUnauthorized() {
+        // Only GET on the catalog path is public — mutating routes stay authenticated.
+        webTestClient.post()
+                .uri("/api/v1/products")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
 }

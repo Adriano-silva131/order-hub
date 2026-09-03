@@ -18,9 +18,6 @@ public class NotificationConsumer {
     private static final Logger log = LoggerFactory.getLogger(NotificationConsumer.class);
     private final EmailSenderService emailService;
 
-    // Os eventos de order/payment ainda não carregam o e-mail do cliente,
-    // então usamos um destinatário de demonstração configurável até essa
-    // propagação existir de ponta a ponta.
     @Value("${notification.demo-recipient-email:demo@example.com}")
     private String demoRecipientEmail = "demo@example.com";
 
@@ -32,7 +29,15 @@ public class NotificationConsumer {
     public void consumeOrderCreatedEvent(OrderCreatedEvent event) {
         log.info("Evento de PEDIDO CRIADO recebido para notificação. Pedido: {}", event.orderId());
 
-        String customerEmail = demoRecipientEmail;
+        try {
+            sendOrderCreatedEmail(event);
+        } catch (Exception e) {
+            log.error("Falha ao processar notificação de pedido criado {}", event.orderId(), e);
+        }
+    }
+
+    private void sendOrderCreatedEmail(OrderCreatedEvent event) {
+        String customerEmail = resolveRecipient(event.customerEmail());
         String subject = "Seu pedido foi recebido!";
         String valorFormatado = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"))
                 .format(event.totalAmount());
@@ -94,7 +99,15 @@ public class NotificationConsumer {
     public void consumePaymentEvent(PaymentResultEvent event) {
         log.info("Evento de PAGAMENTO recebido para notificação. Pedido: {}", event.orderId());
 
-        String customerEmail = demoRecipientEmail;
+        try {
+            sendPaymentResultEmail(event);
+        } catch (Exception e) {
+            log.error("Falha ao processar notificação de pagamento {}", event.orderId(), e);
+        }
+    }
+
+    private void sendPaymentResultEmail(PaymentResultEvent event) {
+        String customerEmail = resolveRecipient(event.customerEmail());
 
         String subject;
         String statusBlock;
@@ -158,5 +171,9 @@ public class NotificationConsumer {
                 """.formatted(statusBlock);
 
         emailService.sendEmail(customerEmail, subject, body);
+    }
+
+    private String resolveRecipient(String customerEmail) {
+        return (customerEmail != null && !customerEmail.isBlank()) ? customerEmail : demoRecipientEmail;
     }
 }

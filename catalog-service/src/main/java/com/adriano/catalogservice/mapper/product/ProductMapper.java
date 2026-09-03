@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ProductMapper {
-    public Product toEntity(ProductRequest request) {
+    public Product toEntity(ProductRequest request, String sellerId) {
         Product product = new Product(
                 request.name(),
                 request.description(),
@@ -15,6 +15,8 @@ public class ProductMapper {
                 request.active()
         );
         product.setAttributes(request.attributes());
+        product.setSellerId(sellerId);
+        product.setStockQuantity(request.stockQuantity());
         return product;
     }
 
@@ -25,7 +27,9 @@ public class ProductMapper {
                 product.getDescription(),
                 product.getPrice(),
                 product.getAttributes(),
-                product.isActive()
+                product.isActive(),
+                product.getSellerId(),
+                product.getStockQuantity()
         );
     }
 }

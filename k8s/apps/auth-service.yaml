@@ -1,0 +1,117 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-service-config
+  namespace: orderhub
+data:
+  HTTP_PORT: "8090"
+  JWT_PRIVATE_KEY_PATH: /app/keys/private.pem
+  JWT_PUBLIC_KEY_PATH: /app/keys/public.pem
+  ACCESS_TOKEN_TTL_SECONDS: "300"
+  REFRESH_TOKEN_TTL_SECONDS: "2592000"
+  AUTH_ISSUER: orderhub-auth-service
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: auth-service-keys
+  namespace: orderhub
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: orderhub
+spec:
+  # Réplica única de propósito: a chave RSA é gerada no boot e persistida num
+  # PVC ReadWriteOnce — duas réplicas gerando/lendo chaves independentes
+  # quebrariam a validação JWKS. Escalar horizontalmente exigiria injetar uma
+  # chave pré-gerada via Secret/Vault em vez de gerar no boot (fora do escopo
+  # atual). Por isso também não há HPA aqui, ao contrário de payment-service.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+        - name: auth-service
+          image: orderhub/auth-service-go:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8090
+          envFrom:
+            - configMapRef:
+                name: auth-service-config
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: password
+            - name: DATABASE_URL
+              value: postgres://$(DB_USERNAME):$(DB_PASSWORD)@postgres:5432/authdb?sslmode=disable
+            - name: ADMIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: auth-service-secret
+                  key: admin-api-key
+          volumeMounts:
+            - name: keys
+              mountPath: /app/keys
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8090
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8090
+            initialDelaySeconds: 20
+            periodSeconds: 15
+      volumes:
+        - name: keys
+          persistentVolumeClaim:
+            claimName: auth-service-keys
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: orderhub
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - port: 8090
+      targetPort: 8090
+  type: ClusterIP

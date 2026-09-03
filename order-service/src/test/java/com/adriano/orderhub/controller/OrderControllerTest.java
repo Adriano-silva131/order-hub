@@ -13,10 +13,13 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -34,17 +37,18 @@ class OrderControllerTest {
         var orderId = UUID.randomUUID();
         var response = new OrderResponse(orderId, "customer-1", OrderStatus.PENDING_PAYMENT, new BigDecimal("300.00"), LocalDateTime.now());
 
-        when(orderService.createOrder(any())).thenReturn(response);
+        when(orderService.createOrder(any(), eq("customer-1"), any())).thenReturn(response);
 
         var body = """
                 {
-                    "customerId": "customer-1",
                     "items": [{ "productId": "prod-1", "quantity": 1 }]
                 }
                 """;
 
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "customer-1")
+                        .header("X-User-Email", "customer-1@example.com")
                         .content(body))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.customerId").value("customer-1"))
@@ -53,10 +57,9 @@ class OrderControllerTest {
     }
 
     @Test
-    void createOrder_shouldReturn400WhenCustomerIdIsBlank() throws Exception {
+    void createOrder_shouldReturn400WhenUserIdHeaderIsMissing() throws Exception {
         var body = """
                 {
-                    "customerId": "",
                     "items": [{ "productId": "prod-1", "quantity": 1 }]
                 }
                 """;
@@ -71,14 +74,33 @@ class OrderControllerTest {
     void createOrder_shouldReturn400WhenItemsIsEmpty() throws Exception {
         var body = """
                 {
-                    "customerId": "customer-1",
                     "items": []
                 }
                 """;
 
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "customer-1")
                         .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void listOrders_shouldReturnOnlyOrdersForAuthenticatedUser() throws Exception {
+        var response = new OrderResponse(UUID.randomUUID(), "customer-1", OrderStatus.PAID, new BigDecimal("150.00"), LocalDateTime.now());
+
+        when(orderService.listOrdersForCustomer("customer-1")).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/v1/orders")
+                        .header("X-User-Id", "customer-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].customerId").value("customer-1"));
+    }
+
+    @Test
+    void listOrders_shouldReturn400WhenUserIdHeaderIsMissing() throws Exception {
+        mockMvc.perform(get("/api/v1/orders"))
                 .andExpect(status().isBadRequest());
     }
 }

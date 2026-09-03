@@ -1,5 +1,5 @@
-# Creates the postgres StatefulSet with both orderdb (via POSTGRES_DB) and
-# paymentdb (via init script mounted from ConfigMap).
+# Creates the postgres StatefulSet with orderdb (via POSTGRES_DB), paymentdb and
+# authdb (via init script mounted from ConfigMap).
 
 apiVersion: v1
 kind: ConfigMap
@@ -9,7 +9,7 @@ metadata:
 data:
   init.sql: |
     CREATE DATABASE paymentdb;
-    CREATE DATABASE keycloakdb;
+    CREATE DATABASE authdb;
 
 ---
 

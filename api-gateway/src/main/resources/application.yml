@@ -12,7 +12,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI:http://localhost:8180/realms/orderhub}
+          jwk-set-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI:http://localhost:8090/.well-known/jwks.json}
   cloud:
     gateway:
       server:
@@ -29,6 +29,10 @@ spring:
               uri: http://localhost:8080
               predicates:
                 - Path=/api/v1/orders,/api/v1/orders/**
+            - id: payment-service-route
+              uri: http://localhost:8082
+              predicates:
+                - Path=/api/v1/payments/**
             - id: catalog-service-route
               uri: http://localhost:8081
               predicates:
@@ -57,3 +61,11 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://otel-collector:4318/v1/traces}

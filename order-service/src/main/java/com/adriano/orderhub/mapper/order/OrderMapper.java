@@ -3,7 +3,6 @@ package com.adriano.orderhub.mapper.order;
 import com.adriano.orderhub.domain.order.Order;
 import com.adriano.orderhub.domain.order.OrderItem;
 import com.adriano.orderhub.dto.order.OrderItemRequest;
-import com.adriano.orderhub.dto.order.OrderRequest;
 import com.adriano.orderhub.dto.order.OrderResponse;
 import com.adriano.orderhub.event.OrderCreatedEvent;
 import com.adriano.orderhub.integration.catalog.dto.CatalogProductResponse;
@@ -15,9 +14,10 @@ import java.time.ZoneOffset;
 @Component
 public class OrderMapper {
 
-    public Order toEntity(OrderRequest request) {
+    public Order toEntity(String customerId, String customerEmail) {
         Order order = new Order();
-        order.setCustomerId(request.customerId());
+        order.setCustomerId(customerId);
+        order.setCustomerEmail(customerEmail != null ? customerEmail : "");
         return order;
     }
 
@@ -46,6 +46,7 @@ public class OrderMapper {
         return new OrderCreatedEvent(
                 order.getId(),
                 order.getCustomerId(),
+                order.getCustomerEmail(),
                 order.getTotalAmount(),
                 order.getCreatedAt().toInstant(ZoneOffset.UTC)
         );

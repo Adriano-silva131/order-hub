@@ -29,7 +29,7 @@ public class EmailSenderService {
             mailSender.send(message);
             log.info("E-mail enviado para {}", to);
         } catch (MessagingException e) {
-            log.error("Falha ao enviar e-mail para {}: {}", to, e.getMessage());
+            log.error("Falha ao enviar e-mail para {}", to, e);
             throw new RuntimeException("Falha ao enviar e-mail", e);
         }
     }
