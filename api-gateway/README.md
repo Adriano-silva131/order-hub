@@ -4,7 +4,7 @@ Ponto único de entrada do OrderHub. Spring Cloud Gateway (WebFlux, reativo) sem
 
 ## Responsabilidades
 
-- **Validação de JWT**: valida tokens emitidos pelo Keycloak (`spring-security-oauth2-resource-server`) antes de encaminhar qualquer requisição.
+- **Validação de JWT**: valida tokens emitidos pelo [`auth-service`](../../auth-service-go) (`spring-security-oauth2-resource-server`, via JWKS) antes de encaminhar qualquer requisição.
 - **Rate limiting**: algoritmo Token Bucket via Redis, chaveado pelo claim `sub` do JWT (fallback para IP quando não autenticado).
 - **Roteamento**: encaminha para `order-service` e `catalog-service` por nome de container (Docker) ou `localhost` (dev local).
 
@@ -14,6 +14,7 @@ Ponto único de entrada do OrderHub. Spring Cloud Gateway (WebFlux, reativo) sem
 |---|---|
 | `/api/v1/orders`, `/api/v1/orders/**` | `order-service` |
 | `/api/v1/products`, `/api/v1/products/**` | `catalog-service` |
+| `/api/v1/payments/**` | `payment-service` |
 
 ## Rate limiter (padrão)
 
@@ -24,7 +25,7 @@ Ponto único de entrada do OrderHub. Spring Cloud Gateway (WebFlux, reativo) sem
 | Variável | Propósito |
 |---|---|
 | `SPRING_DATA_REDIS_HOST` | Host do Redis usado pelo rate limiter |
-| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | URL do realm do Keycloak para validação do JWT |
+| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` | URL do endpoint JWKS do `auth-service` para validação do JWT |
 
 ## Rodando localmente
 
@@ -32,7 +33,7 @@ Ponto único de entrada do OrderHub. Spring Cloud Gateway (WebFlux, reativo) sem
 ./gradlew bootRun
 ```
 
-Requer Redis e Keycloak acessíveis (ver `infra/docker-compose.yml`).
+Requer Redis e o `auth-service` acessíveis (ver `infra/docker-compose.yml`).
 
 ## Testes
 

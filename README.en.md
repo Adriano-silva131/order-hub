@@ -17,7 +17,7 @@ The system follows the **API Gateway** pattern combined with **Authentication Of
 
 ```mermaid
 flowchart LR
-    Client["Client (Postman/Web)"] --> Gateway["API Gateway :8000\nJWT (Keycloak) + Rate Limiting (Redis)"]
+    Client["Client (Postman/Web)"] --> Gateway["API Gateway :8000\nJWT (auth-service) + Rate Limiting (Redis)"]
     Gateway --> Order["Order Service :8080"]
     Gateway --> Catalog["Catalog Service :8081"]
     Order -- "Feign + Circuit Breaker" --> Catalog
@@ -64,7 +64,7 @@ flowchart LR
 | PostgreSQL & MongoDB      | Polyglot persistence tailored to each domain's needs.               |
 | Apache Kafka (KRaft)      | Backbone for asynchronous, event-driven communication.              |
 | Redis                     | In-memory store for traffic control (Token Bucket).                 |
-| Keycloak                  | Identity Provider for access management via OAuth2/OIDC.            |
+| auth-service (Go)         | Self-built auth — registration, login and refresh with RS256 JWT + JWKS. |
 | Prometheus & Grafana      | Metrics collection (Actuator/Micrometer) and real-time dashboards.  |
 | GitHub Actions            | CI pipeline with a parallel matrix build, plus dependency scanning (Trivy) and static analysis (CodeQL). |
 
@@ -111,20 +111,23 @@ docker compose up -d --build
 | Service                      | URL                                              |
 |-------------------------------|--------------------------------------------------|
 | API Gateway                   | http://localhost:8000                            |
-| Keycloak (token issuing)      | http://localhost:8080 *(port configurable via `KEYCLOAK_PORT` in `.env`)* |
+| Auth Service (register/login) | http://localhost:8090 *(port configurable via `AUTH_SERVICE_PORT` in `.env`)* |
 | Grafana (dashboards)          | http://localhost:3000 *(the "JVM (Micrometer)" dashboard is already provisioned; default login `admin`/`admin`)* |
 | Swagger UI — orders           | http://localhost:8000/docs/orders/swagger-ui/index.html |
 | Swagger UI — products         | http://localhost:8000/docs/products/swagger-ui/index.html |
 
-Interactive API docs are served through the api-gateway itself (no internal service ports exposed). "Try it out" calls the real, authenticated API at `http://localhost:8000/api/v1/...` — a valid Keycloak JWT is still required to execute requests.
+Interactive API docs are served through the api-gateway itself (no internal service ports exposed). "Try it out" calls the real, authenticated API at `http://localhost:8000/api/v1/...` — a valid auth-service JWT is still required to execute requests.
 
 **4. Get a test token:**
 
-The `orderhub` realm (client `orderhub_client`, user `demo`/`demo123`) is pre-configured and auto-imported the first time Keycloak starts — nothing to set up manually.
+There's no pre-seeded demo user anymore (the [`auth-service`](../auth-service-go) doesn't auto-import anything) — register a user once, then just log in:
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:8080/realms/orderhub/protocol/openid-connect/token \
-  -d "client_id=orderhub_client&grant_type=password&username=demo&password=demo123" \
+curl -s -X POST http://localhost:8090/auth/register -H "Content-Type: application/json" \
+  -d '{"email":"demo@orderhub.local","password":"demo1234","name":"Demo User"}'
+
+TOKEN=$(curl -s -X POST http://localhost:8090/auth/login -H "Content-Type: application/json" \
+  -d '{"email":"demo@orderhub.local","password":"demo1234"}' \
   | python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
 
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/products

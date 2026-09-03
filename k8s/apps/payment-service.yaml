@@ -4,9 +4,11 @@ metadata:
   name: payment-service-config
   namespace: orderhub
 data:
-  SPRING_PROFILES_ACTIVE: kubernetes
-  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  KAFKA_BROKERS: kafka:9092
   KAFKA_CONSUMER_GROUP_ID: payment-group
+  DLT_REPROCESS_INTERVAL_MS: "60000"
+  PAYMENT_SUCCESS_URL: http://localhost:8000/checkout/success
+  PAYMENT_CANCEL_URL: http://localhost:8000/checkout/cancel
 
 ---
 
@@ -27,7 +29,7 @@ spec:
     spec:
       containers:
         - name: payment-service
-          image: orderhub/payment-service:latest
+          image: orderhub/payment-service-go:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8082
@@ -35,36 +37,56 @@ spec:
             - configMapRef:
                 name: payment-service-config
           env:
-            - name: SPRING_DATASOURCE_URL
-              value: jdbc:postgresql://postgres:5432/paymentdb
-            - name: SPRING_DATASOURCE_USERNAME
+            - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: postgres-secret
                   key: username
-            - name: SPRING_DATASOURCE_PASSWORD
+            - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: postgres-secret
                   key: password
+            - name: DATABASE_URL
+              value: postgres://$(DB_USERNAME):$(DB_PASSWORD)@postgres:5432/paymentdb?sslmode=disable
+            - name: STRIPE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: payment-service-secret
+                  key: stripe-secret-key
+            - name: STRIPE_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: payment-service-secret
+                  key: stripe-webhook-secret
+            - name: MERCADOPAGO_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: payment-service-secret
+                  key: mercadopago-access-token
+            - name: MERCADOPAGO_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: payment-service-secret
+                  key: mercadopago-webhook-secret
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 128Mi
             limits:
               cpu: 300m
-              memory: 512Mi
+              memory: 256Mi
           readinessProbe:
             httpGet:
-              path: /actuator/health/readiness
+              path: /readyz
               port: 8082
-            initialDelaySeconds: 45
+            initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /actuator/health/liveness
+              path: /healthz
               port: 8082
-            initialDelaySeconds: 90
+            initialDelaySeconds: 20
             periodSeconds: 15
 
 ---

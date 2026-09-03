@@ -4,14 +4,12 @@ import com.adriano.orderhub.domain.order.Order;
 import com.adriano.orderhub.domain.order.OrderItem;
 import com.adriano.orderhub.domain.order.OrderStatus;
 import com.adriano.orderhub.dto.order.OrderItemRequest;
-import com.adriano.orderhub.dto.order.OrderRequest;
 import com.adriano.orderhub.integration.catalog.dto.CatalogProductResponse;
 import com.adriano.orderhub.mapper.order.OrderMapper;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,11 +20,17 @@ class OrderMapperTest {
 
     @Test
     void toEntity_shouldMapCustomerId() {
-        var request = new OrderRequest("customer-42", List.of());
-
-        var order = mapper.toEntity(request);
+        var order = mapper.toEntity("customer-42", "customer-42@example.com");
 
         assertThat(order.getCustomerId()).isEqualTo("customer-42");
+        assertThat(order.getCustomerEmail()).isEqualTo("customer-42@example.com");
+    }
+
+    @Test
+    void toEntity_shouldDefaultEmailToBlankWhenHeaderMissing() {
+        var order = mapper.toEntity("customer-42", null);
+
+        assertThat(order.getCustomerEmail()).isEmpty();
     }
 
     @Test
@@ -64,6 +68,7 @@ class OrderMapperTest {
         var order = new Order();
         order.setId(UUID.randomUUID());
         order.setCustomerId("customer-1");
+        order.setCustomerEmail("customer-1@example.com");
         order.setTotalAmount(new BigDecimal("500.00"));
         order.setCreatedAt(LocalDateTime.now());
 
@@ -71,6 +76,7 @@ class OrderMapperTest {
 
         assertThat(event.orderId()).isEqualTo(order.getId());
         assertThat(event.customerId()).isEqualTo("customer-1");
+        assertThat(event.customerEmail()).isEqualTo("customer-1@example.com");
         assertThat(event.totalAmount()).isEqualByComparingTo("500.00");
         assertThat(event.createdAt()).isNotNull();
     }
