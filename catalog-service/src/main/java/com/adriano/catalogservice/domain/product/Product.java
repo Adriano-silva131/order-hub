@@ -21,6 +21,8 @@ public class Product {
     private String description;
     private BigDecimal price;
     private boolean active;
+    private String sellerId;
+    private int stockQuantity;
 
     private Map<String, Object> attributes = new HashMap<>();
 

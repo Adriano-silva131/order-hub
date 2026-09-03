@@ -104,7 +104,6 @@ export default function (data) {
 
     const productId = productIds[Math.floor(Math.random() * productIds.length)];
     const payload = {
-      customerId: `customer-k6-${__VU}`,
       items: [
         { productId, quantity: Math.floor(Math.random() * 3) + 1 },
       ],

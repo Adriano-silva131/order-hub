@@ -9,6 +9,8 @@ public record ProductResponse(
         String description,
         BigDecimal price,
         Map<String, Object> attributes,
-        boolean active
+        boolean active,
+        String sellerId,
+        int stockQuantity
 ) {
 }
