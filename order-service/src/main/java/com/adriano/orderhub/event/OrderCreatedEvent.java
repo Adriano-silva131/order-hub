@@ -6,6 +6,7 @@ import java.util.UUID;
 
 public record OrderCreatedEvent(
         UUID orderId,
+        Long orderNumber,
         String customerId,
         String customerEmail,
         BigDecimal totalAmount,

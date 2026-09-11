@@ -6,6 +6,7 @@ import com.adriano.orderhub.service.order.OrderService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -15,6 +16,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/orders")
@@ -44,5 +46,12 @@ public class OrderController {
     @GetMapping
     public ResponseEntity<List<OrderResponse>> listOrders(@RequestHeader("X-User-Id") String customerId) {
         return ResponseEntity.ok(orderService.listOrdersForCustomer(customerId));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<OrderResponse> getOrder(
+            @PathVariable UUID id,
+            @RequestHeader("X-User-Id") String customerId) {
+        return ResponseEntity.ok(orderService.getOrder(customerId, id));
     }
 }

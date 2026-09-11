@@ -111,7 +111,7 @@ services:
       CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
       KAFKA_OPTS: -Djava.security.auth.login.config=/tmp/kafka-server-jaas.conf
     volumes:
-      - kafka_data:/tmp/kraft-combined-logs
+      - kafka_data:/var/lib/kafka/data
     entrypoint: ["/__cacert_entrypoint.sh"]
     command:
       - sh
@@ -282,17 +282,9 @@ services:
       context: ${PAYMENT_SERVICE_GO_PATH:-../../payment-service-go}
     container_name: orderhub-payment-service
     logging: *default-logging
+    ports:
+      - "8082:8082"
     environment:
-      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/paymentdb?sslmode=disable
-      - KAFKA_BROKERS=kafka:9092
-      - KAFKA_CONSUMER_GROUP_ID=payment-group
-      - DLT_REPROCESS_INTERVAL_MS=60000
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-      - MERCADOPAGO_ACCESS_TOKEN=${MERCADOPAGO_ACCESS_TOKEN}
-      - MERCADOPAGO_WEBHOOK_SECRET=${MERCADOPAGO_WEBHOOK_SECRET}
-      - PAYMENT_SUCCESS_URL=${STOREFRONT_URL:-http://localhost:3001}/checkout/success
-      - PAYMENT_CANCEL_URL=${STOREFRONT_URL:-http://localhost:3001}/checkout/cancel
       - HTTP_PORT=8082
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-payment:5432/paymentdb?sslmode=disable
       - KAFKA_BROKERS=kafka:9092
@@ -300,6 +292,8 @@ services:
       - KAFKA_SASL_USERNAME=payment-service
       - KAFKA_SASL_PASSWORD=${KAFKA_PAYMENT_SERVICE_PASSWORD}
       - DLT_REPROCESS_INTERVAL_MS=${DLT_REPROCESS_INTERVAL_MS:-60000}
+      - PAYMENT_RECONCILE_INTERVAL_MS=${PAYMENT_RECONCILE_INTERVAL_MS:-60000}
+      - PAYMENT_RECONCILE_STALE_AFTER_MS=${PAYMENT_RECONCILE_STALE_AFTER_MS:-120000}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-sk_test_changeme}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-whsec_changeme}
       - MERCADOPAGO_ACCESS_TOKEN=${MERCADOPAGO_ACCESS_TOKEN:-TEST-changeme}
@@ -381,7 +375,7 @@ services:
     container_name: orderhub-grafana
     logging: *default-logging
     ports:
-      - "3001:3000"
+      - "3000:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/etc/grafana/dashboards

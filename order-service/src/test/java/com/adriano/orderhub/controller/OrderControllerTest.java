@@ -90,7 +90,7 @@ class OrderControllerTest {
         var orderId = UUID.randomUUID();
         var response = new OrderResponse(orderId, 1000L, "customer-1", OrderStatus.PENDING_PAYMENT, new BigDecimal("300.00"), List.of(), LocalDateTime.now());
 
-        when(orderService.listOrders("customer-1")).thenReturn(List.of(response));
+        when(orderService.listOrdersForCustomer("customer-1")).thenReturn(List.of(response));
 
         mockMvc.perform(get("/api/v1/orders")
                         .header("X-User-Id", "customer-1"))

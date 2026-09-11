@@ -59,6 +59,7 @@ public class OrderMapper {
     public OrderCreatedEvent toEvent(Order order, String customerEmail) {
         return new OrderCreatedEvent(
                 order.getId(),
+                order.getOrderNumber(),
                 order.getCustomerId(),
                 customerEmail,
                 order.getTotalAmount(),

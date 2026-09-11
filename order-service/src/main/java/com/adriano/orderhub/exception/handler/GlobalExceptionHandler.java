@@ -3,6 +3,7 @@ package com.adriano.orderhub.exception.handler;
 import feign.FeignException;
 import feign.RetryableException;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -27,6 +28,17 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ProblemDetail handleEntityNotFound(EntityNotFoundException ex) {
+        log.warn("Entity not found: {}", ex.getMessage());
+
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problemDetail.setTitle("Not Found");
+        problemDetail.setType(URI.create("https://api.orderhub.com/errors/not-found"));
+        problemDetail.setProperty("timestamp", Instant.now());
+        return problemDetail;
+    }
 
     @ExceptionHandler(FeignException.NotFound.class)
     public ProblemDetail handleFeignNotFound(FeignException.NotFound ex) {

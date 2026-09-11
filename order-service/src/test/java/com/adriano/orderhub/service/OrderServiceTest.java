@@ -65,7 +65,7 @@ class OrderServiceTest {
         when(catalogClient.getProductById(productId)).thenReturn(product);
         when(orderRepository.saveAndFlush(any(Order.class))).thenReturn(savedOrder);
 
-        var response = orderService.createOrder("customer-123", "customer-123@example.com", request);
+        var response = orderService.createOrder(request, "customer-123", "customer-123@example.com");
 
         assertThat(response.customerId()).isEqualTo("customer-123");
         assertThat(response.status()).isEqualTo(OrderStatus.PENDING_PAYMENT);
@@ -82,7 +82,7 @@ class OrderServiceTest {
 
         when(catalogClient.getProductById(productId)).thenReturn(inactiveProduct);
 
-        assertThatThrownBy(() -> orderService.createOrder("customer-123", "customer-123@example.com", request))
+        assertThatThrownBy(() -> orderService.createOrder(request, "customer-123", "customer-123@example.com"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Item Inativo");
 
@@ -143,7 +143,7 @@ class OrderServiceTest {
 
         when(orderRepository.findByCustomerIdOrderByCreatedAtDesc("customer-123")).thenReturn(List.of(order));
 
-        var response = orderService.listOrders("customer-123");
+        var response = orderService.listOrdersForCustomer("customer-123");
 
         assertThat(response).hasSize(1);
         assertThat(response.get(0).orderNumber()).isEqualTo(1001L);
