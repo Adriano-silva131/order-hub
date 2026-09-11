@@ -1,6 +1,10 @@
 .vscode
 .idea
 
+# Notas internas com decisões técnicas — nunca commitar
+CLAUDE.md
+CONTRIBUTING.md
+
 # Binários baixados localmente
 kubectl
 minikube-linux-amd64
