@@ -4,6 +4,7 @@
 # Notas internas com decisões técnicas — nunca commitar
 CLAUDE.md
 CONTRIBUTING.md
+CHANGELOG.md
 
 # Binários baixados localmente
 kubectl
