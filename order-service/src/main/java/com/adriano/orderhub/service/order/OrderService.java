@@ -38,7 +38,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse createOrder(String customerId, String customerEmail, OrderRequest request) {
+    public OrderResponse createOrder(OrderRequest request, String customerId, String customerEmail) {
         Order order = orderMapper.toEntity(customerId);
 
         BigDecimal totalAmount = buildOrderItems(order, request);
@@ -53,7 +53,7 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<OrderResponse> listOrders(String customerId) {
+    public List<OrderResponse> listOrdersForCustomer(String customerId) {
         return orderRepository.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
                 .map(orderMapper::toResponse)
                 .toList();
