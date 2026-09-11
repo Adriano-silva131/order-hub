@@ -27,6 +27,9 @@ public class OrderItem {
     private String productId;
 
     @Column(nullable = false)
+    private String productName;
+
+    @Column(nullable = false)
     private Integer quantity;
 
     @Column(nullable = false)

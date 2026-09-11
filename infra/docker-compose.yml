@@ -1,13 +1,7 @@
-x-logging: &default-logging
-  driver: json-file
-  options:
-    max-size: "10m"
-    max-file: "3"
-
 services:
-  postgres:
+  postgres-order:
     image: postgres:16
-    container_name: orderdb
+    container_name: orderhub-postgres-order
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -18,7 +12,40 @@ services:
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  postgres-payment:
+    image: postgres:16
+    container_name: orderhub-postgres-payment
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paymentdb
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${PAYMENT_POSTGRES_PORT:-5436}:5432"
+    volumes:
+      - postgres_payment_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  postgres-auth:
+    image: postgres:16
+    container_name: orderhub-postgres-auth
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: authdb
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${AUTH_POSTGRES_PORT:-5435}:5432"
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
@@ -54,23 +81,72 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENERS: SASL_PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: SASL_PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: SASL_PLAINTEXT:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: SASL_PLAINTEXT
+      KAFKA_SASL_ENABLED_MECHANISMS: PLAIN
+      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: PLAIN
+      KAFKA_AUTHORIZER_CLASS_NAME: org.apache.kafka.metadata.authorizer.StandardAuthorizer
+      KAFKA_SUPER_USERS: User:admin;User:ANONYMOUS
+      KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: "false"
+      KAFKA_LISTENER_NAME_SASL_PLAINTEXT_PLAIN_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.plain.PlainLoginModule required
+        username="admin"
+        password="${KAFKA_ADMIN_PASSWORD}"
+        user_admin="${KAFKA_ADMIN_PASSWORD}"
+        user_order-service="${KAFKA_ORDER_SERVICE_PASSWORD}"
+        user_payment-service="${KAFKA_PAYMENT_SERVICE_PASSWORD}"
+        user_notification-service="${KAFKA_NOTIFICATION_SERVICE_PASSWORD}";
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+      KAFKA_OPTS: -Djava.security.auth.login.config=/tmp/kafka-server-jaas.conf
     volumes:
       - kafka_data:/tmp/kraft-combined-logs
+    entrypoint: ["/__cacert_entrypoint.sh"]
+    command:
+      - sh
+      - -c
+      - |
+        cat > /tmp/admin.properties <<'PROPS'
+        security.protocol=SASL_PLAINTEXT
+        sasl.mechanism=PLAIN
+        sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="${KAFKA_ADMIN_PASSWORD}";
+        PROPS
+        cat > /tmp/kafka-server-jaas.conf <<'JAAS'
+        KafkaServer {
+          org.apache.kafka.common.security.plain.PlainLoginModule required
+          username="admin"
+          password="${KAFKA_ADMIN_PASSWORD}"
+          user_admin="${KAFKA_ADMIN_PASSWORD}"
+          user_order-service="${KAFKA_ORDER_SERVICE_PASSWORD}"
+          user_payment-service="${KAFKA_PAYMENT_SERVICE_PASSWORD}"
+          user_notification-service="${KAFKA_NOTIFICATION_SERVICE_PASSWORD}";
+        };
+        JAAS
+        exec /etc/kafka/docker/run
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 --command-config /tmp/admin.properties"]
       interval: 10s
       timeout: 10s
       retries: 10
       start_period: 30s
+
+  kafka-acl-init:
+    image: apache/kafka:latest
+    container_name: orderhub-kafka-acl-init
+    environment:
+      KAFKA_ADMIN_PASSWORD: ${KAFKA_ADMIN_PASSWORD}
+    volumes:
+      - ./kafka/setup-acls.sh:/setup-acls.sh:ro
+    entrypoint: ["/bin/sh", "/setup-acls.sh"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+
   redis:
     image: redis:7-alpine
     container_name: orderhub-redis
@@ -85,6 +161,41 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  auth-service:
+    build:
+      context: ${AUTH_SERVICE_GO_PATH:-../../auth-service-go}
+    container_name: orderhub-auth-service
+    environment:
+      - HTTP_PORT=8090
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-auth:5432/authdb?sslmode=disable
+      - JWT_PRIVATE_KEY_PATH=/app/keys/private.pem
+      - JWT_PUBLIC_KEY_PATH=/app/keys/public.pem
+      - ACCESS_TOKEN_TTL_SECONDS=${AUTH_ACCESS_TOKEN_TTL_SECONDS:-300}
+      - REFRESH_TOKEN_TTL_SECONDS=${AUTH_REFRESH_TOKEN_TTL_SECONDS:-2592000}
+      - AUTH_ISSUER=${AUTH_ISSUER:-orderhub-auth-service}
+      - ADMIN_API_KEY=${AUTH_ADMIN_API_KEY:-changeme-admin-key}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${MAIL_USERNAME}
+      - SMTP_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_FROM=${MAIL_USERNAME}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:3001/api/auth/google/callback}
+    ports:
+      - "${AUTH_SERVICE_PORT:-8090}:8090"
+    volumes:
+      - auth_keys:/app/keys
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
 
   api-gateway:
     build:
@@ -113,6 +224,15 @@ services:
       - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_4_ID=payment-service-route
       - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_4_URI=http://orderhub-payment-service:8082
       - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_4_PREDICATES_0=Path=/api/v1/payments/**
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_4_ID=auth-service-route
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_4_URI=http://orderhub-auth-service:8090
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_4_PREDICATES_0=Path=/auth/**
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_5_ID=payment-service-route
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_5_URI=http://orderhub-payment-service:8082
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_5_PREDICATES_0=Path=/api/v1/payments/**
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_6_ID=auth-service-users-route
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_6_URI=http://orderhub-auth-service:8090
+      - SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_ROUTES_6_PREDICATES_0=Path=/users/**
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -131,16 +251,19 @@ services:
     container_name: orderhub-order-service
     logging: *default-logging
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/orderdb
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-order:5432/orderdb
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_SECURITY_PROTOCOL=SASL_PLAINTEXT
+      - KAFKA_SASL_MECHANISM=PLAIN
+      - KAFKA_SASL_JAAS_CONFIG=org.apache.kafka.common.security.plain.PlainLoginModule required username="order-service" password="${KAFKA_ORDER_SERVICE_PASSWORD}";
       - INTEGRATION_CATALOG_URL=http://orderhub-catalog-service:8081/api/v1/products
       - SPRINGDOC_SWAGGER_UI_URL=/docs/orders/v3/api-docs
       - APP_PUBLIC_BASE_URL=http://localhost:8000
     depends_on:
-      postgres:
+      postgres-order:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
+      kafka-acl-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -164,11 +287,24 @@ services:
       - MERCADOPAGO_WEBHOOK_SECRET=${MERCADOPAGO_WEBHOOK_SECRET}
       - PAYMENT_SUCCESS_URL=${STOREFRONT_URL:-http://localhost:3001}/checkout/success
       - PAYMENT_CANCEL_URL=${STOREFRONT_URL:-http://localhost:3001}/checkout/cancel
+      - HTTP_PORT=8082
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-payment:5432/paymentdb?sslmode=disable
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_CONSUMER_GROUP_ID=payment-group
+      - KAFKA_SASL_USERNAME=payment-service
+      - KAFKA_SASL_PASSWORD=${KAFKA_PAYMENT_SERVICE_PASSWORD}
+      - DLT_REPROCESS_INTERVAL_MS=${DLT_REPROCESS_INTERVAL_MS:-60000}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-sk_test_changeme}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-whsec_changeme}
+      - MERCADOPAGO_ACCESS_TOKEN=${MERCADOPAGO_ACCESS_TOKEN:-TEST-changeme}
+      - MERCADOPAGO_WEBHOOK_SECRET=${MERCADOPAGO_WEBHOOK_SECRET:-changeme}
+      - PAYMENT_SUCCESS_URL=${PAYMENT_SUCCESS_URL:-${STOREFRONT_URL:-http://localhost:3001}/checkout/success}
+      - PAYMENT_CANCEL_URL=${PAYMENT_CANCEL_URL:-${STOREFRONT_URL:-http://localhost:3001}/checkout/cancel}
     depends_on:
-      postgres:
+      postgres-payment:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
+      kafka-acl-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8082/healthz"]
       interval: 10s
@@ -202,12 +338,15 @@ services:
     logging: *default-logging
     environment:
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_SECURITY_PROTOCOL=SASL_PLAINTEXT
+      - KAFKA_SASL_MECHANISM=PLAIN
+      - KAFKA_SASL_JAAS_CONFIG=org.apache.kafka.common.security.plain.PlainLoginModule required username="notification-service" password="${KAFKA_NOTIFICATION_SERVICE_PASSWORD}";
       - SPRING_MAIL_USERNAME=${MAIL_USERNAME}
       - SPRING_MAIL_PASSWORD=${MAIL_PASSWORD}
       - NOTIFICATION_DEMO_RECIPIENT_EMAIL=${DEMO_RECIPIENT_EMAIL}
     depends_on:
-      kafka:
-        condition: service_healthy
+      kafka-acl-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8083/actuator/health"]
       interval: 10s
@@ -303,9 +442,12 @@ services:
 
 volumes:
   postgres_data:
+  postgres_payment_data:
+  postgres_auth_data:
   mongo_data:
   kafka_data:
   redis_data:
     driver: local
   tempo_data:
   loki_data:
+  auth_keys:

@@ -4,6 +4,7 @@ import com.adriano.orderhub.controller.order.OrderController;
 import com.adriano.orderhub.domain.order.OrderStatus;
 import com.adriano.orderhub.dto.order.OrderResponse;
 import com.adriano.orderhub.service.order.OrderService;
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -35,9 +36,9 @@ class OrderControllerTest {
     @Test
     void createOrder_shouldReturn201WithLocationHeader() throws Exception {
         var orderId = UUID.randomUUID();
-        var response = new OrderResponse(orderId, "customer-1", OrderStatus.PENDING_PAYMENT, new BigDecimal("300.00"), LocalDateTime.now());
+        var response = new OrderResponse(orderId, 1000L, "customer-1", OrderStatus.PENDING_PAYMENT, new BigDecimal("300.00"), List.of(), LocalDateTime.now());
 
-        when(orderService.createOrder(any(), eq("customer-1"), any())).thenReturn(response);
+        when(orderService.createOrder(any(), any(), any())).thenReturn(response);
 
         var body = """
                 {
@@ -46,9 +47,8 @@ class OrderControllerTest {
                 """;
 
         mockMvc.perform(post("/api/v1/orders")
-                        .contentType(MediaType.APPLICATION_JSON)
                         .header("X-User-Id", "customer-1")
-                        .header("X-User-Email", "customer-1@example.com")
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.customerId").value("customer-1"))
@@ -79,28 +79,49 @@ class OrderControllerTest {
                 """;
 
         mockMvc.perform(post("/api/v1/orders")
-                        .contentType(MediaType.APPLICATION_JSON)
                         .header("X-User-Id", "customer-1")
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void listOrders_shouldReturnOnlyOrdersForAuthenticatedUser() throws Exception {
-        var response = new OrderResponse(UUID.randomUUID(), "customer-1", OrderStatus.PAID, new BigDecimal("150.00"), LocalDateTime.now());
+    void listOrders_shouldReturn200WithCustomerOrders() throws Exception {
+        var orderId = UUID.randomUUID();
+        var response = new OrderResponse(orderId, 1000L, "customer-1", OrderStatus.PENDING_PAYMENT, new BigDecimal("300.00"), List.of(), LocalDateTime.now());
 
-        when(orderService.listOrdersForCustomer("customer-1")).thenReturn(List.of(response));
+        when(orderService.listOrders("customer-1")).thenReturn(List.of(response));
 
         mockMvc.perform(get("/api/v1/orders")
                         .header("X-User-Id", "customer-1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].customerId").value("customer-1"));
+                .andExpect(jsonPath("$[0].orderNumber").value(1000))
+                .andExpect(jsonPath("$[0].id").value(orderId.toString()));
     }
 
     @Test
-    void listOrders_shouldReturn400WhenUserIdHeaderIsMissing() throws Exception {
-        mockMvc.perform(get("/api/v1/orders"))
-                .andExpect(status().isBadRequest());
+    void getOrder_shouldReturn200WithOrderNumber() throws Exception {
+        var orderId = UUID.randomUUID();
+        var response = new OrderResponse(orderId, 1000L, "customer-1", OrderStatus.PENDING_PAYMENT, new BigDecimal("300.00"), List.of(), LocalDateTime.now());
+
+        when(orderService.getOrder(eq("customer-1"), eq(orderId))).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/orders/{id}", orderId)
+                        .header("X-User-Id", "customer-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderNumber").value(1000))
+                .andExpect(jsonPath("$.id").value(orderId.toString()));
+    }
+
+    @Test
+    void getOrder_shouldReturn404WhenOrderNotFoundOrNotOwned() throws Exception {
+        var orderId = UUID.randomUUID();
+
+        when(orderService.getOrder(eq("customer-1"), eq(orderId)))
+                .thenThrow(new EntityNotFoundException("Order not found: " + orderId));
+
+        mockMvc.perform(get("/api/v1/orders/{id}", orderId)
+                        .header("X-User-Id", "customer-1"))
+                .andExpect(status().isNotFound());
     }
 }

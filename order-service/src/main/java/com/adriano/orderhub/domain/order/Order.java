@@ -2,6 +2,8 @@ package com.adriano.orderhub.domain.order;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Generated;
+import org.hibernate.generator.EventType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -21,6 +23,10 @@ public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @Column(name = "order_number", nullable = false, updatable = false, unique = true, insertable = false)
+    @Generated(event = EventType.INSERT)
+    private Long orderNumber;
 
     @Column(nullable = false)
     private String customerId;

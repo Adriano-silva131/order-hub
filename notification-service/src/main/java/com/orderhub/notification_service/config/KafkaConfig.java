@@ -2,7 +2,9 @@ package com.orderhub.notification_service.config;
 
 import com.orderhub.notification_service.event.OrderCreatedEvent;
 import com.orderhub.notification_service.event.PaymentResultEvent;
+import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -25,6 +27,15 @@ public class KafkaConfig {
     @Value("${spring.kafka.consumer.group-id}")
     private String groupId;
 
+    @Value("${kafka.security.protocol}")
+    private String securityProtocol;
+
+    @Value("${kafka.sasl.mechanism}")
+    private String saslMechanism;
+
+    @Value("${kafka.sasl.jaas.config}")
+    private String saslJaasConfig;
+
     private <T> ConsumerFactory<String, T> consumerFactory(Class<T> targetType) {
         JsonDeserializer<T> jsonDeserializer = new JsonDeserializer<>(targetType);
         jsonDeserializer.setUseTypeHeaders(false);
@@ -35,6 +46,11 @@ public class KafkaConfig {
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        if (securityProtocol != null && !securityProtocol.isBlank() && !"PLAINTEXT".equals(securityProtocol)) {
+            props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, securityProtocol);
+            props.put(SaslConfigs.SASL_MECHANISM, saslMechanism);
+            props.put(SaslConfigs.SASL_JAAS_CONFIG, saslJaasConfig);
+        }
 
         return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), deserializer);
     }

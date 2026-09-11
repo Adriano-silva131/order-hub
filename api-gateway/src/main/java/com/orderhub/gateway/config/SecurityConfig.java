@@ -17,12 +17,12 @@ public class SecurityConfig {
                 .authorizeExchange(exchange -> exchange
                         .pathMatchers("/actuator/health", "/actuator/health/**", "/actuator/prometheus").permitAll()
                         .pathMatchers("/docs/**").permitAll()
-                        // Stripe/Mercado Pago call these directly — no app JWT, verified via
-                        // gateway-specific signatures inside payment-service instead.
+                        .pathMatchers("/auth/**").permitAll()
                         .pathMatchers("/api/v1/payments/webhooks/**").permitAll()
-                        // Catalog browsing must be anonymous: the storefront (order-hub-store)
-                        // server-renders /catalogo for SEO, and crawlers carry no JWT. Only GET
-                        // is public — create/stock-mutation routes on the same path stay authenticated.
+                        // Public catalog browsing — GET only. POST (create product) stays
+                        // authenticated: catalog-service has no security layer of its own
+                        // (by design, see CLAUDE.md), so this is the only place stopping an
+                        // anonymous caller from creating products.
                         .pathMatchers(HttpMethod.GET, "/api/v1/products", "/api/v1/products/**").permitAll()
                         .anyExchange().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));

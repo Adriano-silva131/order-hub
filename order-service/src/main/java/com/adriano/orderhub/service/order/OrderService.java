@@ -9,7 +9,6 @@ import com.adriano.orderhub.dto.order.OrderResponse;
 import com.adriano.orderhub.event.OrderCreatedEvent;
 import com.adriano.orderhub.integration.catalog.client.CatalogClient;
 import com.adriano.orderhub.integration.catalog.dto.CatalogProductResponse;
-import com.adriano.orderhub.integration.catalog.dto.StockAdjustmentRequest;
 import com.adriano.orderhub.kafka.KafkaEventPublisher;
 import com.adriano.orderhub.mapper.order.OrderMapper;
 import com.adriano.orderhub.repository.order.OrderRepository;
@@ -19,7 +18,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,25 +38,34 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse createOrder(OrderRequest request, String customerId, String customerEmail) {
-        Order order = orderMapper.toEntity(customerId, customerEmail);
+    public OrderResponse createOrder(String customerId, String customerEmail, OrderRequest request) {
+        Order order = orderMapper.toEntity(customerId);
 
         BigDecimal totalAmount = buildOrderItems(order, request);
         order.setTotalAmount(totalAmount);
 
-        Order savedOrder = orderRepository.save(order);
+        Order savedOrder = orderRepository.saveAndFlush(order);
 
-        OrderCreatedEvent event = orderMapper.toEvent(savedOrder);
+        OrderCreatedEvent event = orderMapper.toEvent(savedOrder, customerEmail);
         kafkaEventPublisher.publish("order-events", savedOrder.getId().toString(), "order.created.v1", event);
 
         return orderMapper.toResponse(savedOrder);
     }
 
     @Transactional(readOnly = true)
-    public List<OrderResponse> listOrdersForCustomer(String customerId) {
+    public List<OrderResponse> listOrders(String customerId) {
         return orderRepository.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
                 .map(orderMapper::toResponse)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public OrderResponse getOrder(String customerId, UUID orderId) {
+        Order order = orderRepository.findById(orderId)
+                .filter(o -> o.getCustomerId().equals(customerId))
+                .orElseThrow(() -> new EntityNotFoundException("Order not found: " + orderId));
+
+        return orderMapper.toResponse(order);
     }
 
     @Transactional
@@ -74,35 +81,19 @@ public class OrderService {
         order.setStatus(status);
         orderRepository.save(order);
         log.info("Order {} status updated to {}", orderId, status);
-
-        if (status == OrderStatus.CANCELLED) {
-            releaseStockForOrder(order);
-        }
-    }
-
-    private record ReservedItem(String productId, int quantity) {
     }
 
     private BigDecimal buildOrderItems(Order order, OrderRequest request) {
         BigDecimal totalAmount = BigDecimal.ZERO;
-        List<ReservedItem> reserved = new ArrayList<>();
 
-        try {
-            for (OrderItemRequest itemRequest : request.items()) {
-                CatalogProductResponse product = fetchAndValidateProduct(itemRequest.productId());
+        for (OrderItemRequest itemRequest : request.items()) {
+            CatalogProductResponse product = fetchAndValidateProduct(itemRequest.productId());
 
-                catalogClient.decreaseStock(itemRequest.productId(), new StockAdjustmentRequest(itemRequest.quantity()));
-                reserved.add(new ReservedItem(itemRequest.productId(), itemRequest.quantity()));
+            OrderItem orderItem = orderMapper.toOrderItem(itemRequest, product);
+            orderItem.setOrder(order);
+            order.getItems().add(orderItem);
 
-                OrderItem orderItem = orderMapper.toOrderItem(itemRequest, product);
-                orderItem.setOrder(order);
-                order.getItems().add(orderItem);
-
-                totalAmount = totalAmount.add(orderItem.getSubtotal());
-            }
-        } catch (RuntimeException ex) {
-            releaseReservedStock(reserved);
-            throw ex;
+            totalAmount = totalAmount.add(orderItem.getSubtotal());
         }
 
         return totalAmount;
@@ -116,27 +107,5 @@ public class OrderService {
         }
 
         return product;
-    }
-
-    private void releaseReservedStock(List<ReservedItem> reserved) {
-        for (ReservedItem item : reserved) {
-            try {
-                catalogClient.increaseStock(item.productId(), new StockAdjustmentRequest(item.quantity()));
-            } catch (Exception releaseEx) {
-                log.error("Failed to release reserved stock for product {} qty {} during order rollback: {}",
-                        item.productId(), item.quantity(), releaseEx.getMessage(), releaseEx);
-            }
-        }
-    }
-
-    private void releaseStockForOrder(Order order) {
-        for (OrderItem item : order.getItems()) {
-            try {
-                catalogClient.increaseStock(item.getProductId(), new StockAdjustmentRequest(item.getQuantity()));
-            } catch (Exception ex) {
-                log.error("Failed to release stock for cancelled order {} product {} qty {}: {}",
-                        order.getId(), item.getProductId(), item.getQuantity(), ex.getMessage(), ex);
-            }
-        }
     }
 }

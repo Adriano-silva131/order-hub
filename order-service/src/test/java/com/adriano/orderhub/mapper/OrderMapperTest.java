@@ -20,17 +20,9 @@ class OrderMapperTest {
 
     @Test
     void toEntity_shouldMapCustomerId() {
-        var order = mapper.toEntity("customer-42", "customer-42@example.com");
+        var order = mapper.toEntity("customer-42");
 
         assertThat(order.getCustomerId()).isEqualTo("customer-42");
-        assertThat(order.getCustomerEmail()).isEqualTo("customer-42@example.com");
-    }
-
-    @Test
-    void toEntity_shouldDefaultEmailToBlankWhenHeaderMissing() {
-        var order = mapper.toEntity("customer-42", null);
-
-        assertThat(order.getCustomerEmail()).isEmpty();
     }
 
     @Test
@@ -41,6 +33,7 @@ class OrderMapperTest {
         OrderItem item = mapper.toOrderItem(itemRequest, product);
 
         assertThat(item.getProductId()).isEqualTo("prod-1");
+        assertThat(item.getProductName()).isEqualTo("Mouse");
         assertThat(item.getQuantity()).isEqualTo(3);
         assertThat(item.getUnitPrice()).isEqualByComparingTo("150.00");
         assertThat(item.getSubtotal()).isEqualByComparingTo("450.00");
@@ -50,17 +43,31 @@ class OrderMapperTest {
     void toResponse_shouldMapAllFields() {
         var order = new Order();
         order.setId(UUID.randomUUID());
+        order.setOrderNumber(1042L);
         order.setCustomerId("customer-99");
         order.setStatus(OrderStatus.PENDING_PAYMENT);
         order.setTotalAmount(new BigDecimal("900.00"));
         order.setCreatedAt(LocalDateTime.now());
 
+        var item = new OrderItem();
+        item.setProductId("prod-1");
+        item.setProductName("Mouse");
+        item.setQuantity(3);
+        item.setUnitPrice(new BigDecimal("150.00"));
+        item.setSubtotal(new BigDecimal("450.00"));
+        item.setOrder(order);
+        order.getItems().add(item);
+
         var response = mapper.toResponse(order);
 
         assertThat(response.id()).isEqualTo(order.getId());
+        assertThat(response.orderNumber()).isEqualTo(1042L);
         assertThat(response.customerId()).isEqualTo("customer-99");
         assertThat(response.status()).isEqualTo(OrderStatus.PENDING_PAYMENT);
         assertThat(response.totalAmount()).isEqualByComparingTo("900.00");
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).productName()).isEqualTo("Mouse");
+        assertThat(response.items().get(0).subtotal()).isEqualByComparingTo("450.00");
     }
 
     @Test
@@ -68,11 +75,10 @@ class OrderMapperTest {
         var order = new Order();
         order.setId(UUID.randomUUID());
         order.setCustomerId("customer-1");
-        order.setCustomerEmail("customer-1@example.com");
         order.setTotalAmount(new BigDecimal("500.00"));
         order.setCreatedAt(LocalDateTime.now());
 
-        var event = mapper.toEvent(order);
+        var event = mapper.toEvent(order, "customer-1@example.com");
 
         assertThat(event.orderId()).isEqualTo(order.getId());
         assertThat(event.customerId()).isEqualTo("customer-1");
